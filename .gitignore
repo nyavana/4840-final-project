@@ -1,6 +1,8 @@
-# Claude Code per-user config
+# AI tool config
 .claude/
 CLAUDE.md
+.codex.skills
+.gemini/
 
 # OS junk
 .DS_Store

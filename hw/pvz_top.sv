@@ -155,7 +155,9 @@ module pvz_top(
     // ---------------------------------------------------------------
     // Shape renderer
     // ---------------------------------------------------------------
+    /* verilator lint_off UNUSED */
     logic render_done;
+    /* verilator lint_on UNUSED */
 
     shape_renderer renderer(
         .clk(clk),
@@ -226,7 +228,7 @@ module pvz_top(
                     bg_wr_en    = 1'b1;
                     bg_wr_col   = writedata[2:0];
                     bg_wr_row   = writedata[4:3];
-                    bg_wr_color = writedata[12:8];
+                    bg_wr_color = writedata[15:8];
                 end
                 3'd1: begin // SHAPE_ADDR (byte offset 0x04)
                     st_addr_wr   = 1'b1;

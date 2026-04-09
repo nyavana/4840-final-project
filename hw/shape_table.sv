@@ -51,8 +51,10 @@ module shape_table(
 
     // Staging registers (hold data0/data1 until commit)
     logic [5:0]  cur_addr;
+    /* verilator lint_off UNUSED */
     logic [31:0] staged_data0;
     logic [31:0] staged_data1;
+    /* verilator lint_on UNUSED */
 
     // Shadow and active tables
     // Pack each entry as {color[7:0], h[8:0], w[8:0], y[8:0], x[9:0], visible, type[1:0]}

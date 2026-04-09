@@ -1,5 +1,5 @@
-#ifndef _INPUT_H
-#define _INPUT_H
+#ifndef PVZ_INPUT_H
+#define PVZ_INPUT_H
 
 /* Input event codes returned by input_poll() */
 #define INPUT_NONE   0
@@ -28,4 +28,4 @@ int input_poll(void);
  */
 void input_close(void);
 
-#endif /* _INPUT_H */
+#endif /* PVZ_INPUT_H */
