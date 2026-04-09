@@ -75,11 +75,11 @@ add_interface vga conduit end
 set_interface_property vga associatedClock clock
 set_interface_property vga associatedReset reset
 
-add_interface_port vga VGA_R export Output 8
-add_interface_port vga VGA_G export Output 8
-add_interface_port vga VGA_B export Output 8
-add_interface_port vga VGA_CLK export Output 1
-add_interface_port vga VGA_HS export Output 1
-add_interface_port vga VGA_VS export Output 1
-add_interface_port vga VGA_BLANK_n export Output 1
-add_interface_port vga VGA_SYNC_n export Output 1
+add_interface_port vga VGA_R r Output 8
+add_interface_port vga VGA_G g Output 8
+add_interface_port vga VGA_B b Output 8
+add_interface_port vga VGA_CLK clk Output 1
+add_interface_port vga VGA_HS hs Output 1
+add_interface_port vga VGA_VS vs Output 1
+add_interface_port vga VGA_BLANK_n blank_n Output 1
+add_interface_port vga VGA_SYNC_n sync_n Output 1

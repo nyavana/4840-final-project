@@ -240,14 +240,14 @@ module soc_system_top(
         .hps_hps_io_gpio_inst_GPIO61  ( HPS_GSENSOR_INT ),
 
         // PvZ GPU VGA conduit (exported from Platform Designer)
-        .pvz_top_0_vga_VGA_R          ( VGA_R ),
-        .pvz_top_0_vga_VGA_G          ( VGA_G ),
-        .pvz_top_0_vga_VGA_B          ( VGA_B ),
-        .pvz_top_0_vga_VGA_CLK        ( VGA_CLK ),
-        .pvz_top_0_vga_VGA_HS         ( VGA_HS ),
-        .pvz_top_0_vga_VGA_VS         ( VGA_VS ),
-        .pvz_top_0_vga_VGA_BLANK_n    ( VGA_BLANK_N ),
-        .pvz_top_0_vga_VGA_SYNC_n     ( VGA_SYNC_N )
+        .pvz_top_0_vga_r              ( VGA_R ),
+        .pvz_top_0_vga_g              ( VGA_G ),
+        .pvz_top_0_vga_b              ( VGA_B ),
+        .pvz_top_0_vga_clk            ( VGA_CLK ),
+        .pvz_top_0_vga_hs             ( VGA_HS ),
+        .pvz_top_0_vga_vs             ( VGA_VS ),
+        .pvz_top_0_vga_blank_n        ( VGA_BLANK_N ),
+        .pvz_top_0_vga_sync_n         ( VGA_SYNC_N )
     );
 
     // Quiet "no driver" warnings for unused output pins
