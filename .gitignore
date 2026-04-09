@@ -1,7 +1,7 @@
 # AI tool config
 .claude/
 CLAUDE.md
-.codex.skills
+.codex/
 .gemini/
 
 # OS junk
