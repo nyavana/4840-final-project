@@ -54,7 +54,7 @@ module vga_counters(
                        !(hcount[7:5] == 3'b111) );
 
     // Vertical sync: active low during sync pulse
-    assign VGA_VS = !( vcount[9:1] == (VACTIVE + VFRONT_PORCH) / 2 );
+    assign VGA_VS = !( vcount[9:1] == 9'd245 ); // (VACTIVE+VFRONT_PORCH)/2
 
     assign VGA_SYNC_n = 1'b0; // Unused — composite sync on green
 

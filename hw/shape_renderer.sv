@@ -76,18 +76,7 @@ module shape_renderer(
     logic [8:0]  s_h;
     logic [7:0]  s_color;
 
-    // Circle rendering helpers
-    logic signed [10:0] cx, cy_val;
-    logic signed [10:0] radius;
-
-    // 7-segment digit rendering
-    logic [3:0] digit_val;
-    // Segment layout for a 7-seg digit (relative to shape x,y)
-    // Digit is drawn in a ~20x30 pixel bounding box
-    // Segments: a=top, b=top-right, c=bottom-right, d=bottom,
-    //           e=bottom-left, f=top-left, g=middle
-    logic [6:0] seg_pattern; // {g,f,e,d,c,b,a}
-    logic seg_hit;
+    // (Circle and 7-seg helpers are computed inline in S_SHAPE_DRAW)
 
     // 7-segment decode table
     function logic [6:0] decode_7seg(input logic [3:0] val);
