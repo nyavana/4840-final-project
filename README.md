@@ -1,14 +1,14 @@
 # Plants vs Zombies on DE1-SoC
 
-A simplified Plants vs. Zombies clone running on the Terasic DE1-SoC (Cyclone V). Final project for Columbia's CSEE 4840 Embedded Systems Design, Spring 2026.
+A simplified Plants vs Zombies clone running on the Terasic DE1-SoC (Cyclone V). Final project for Columbia's CSEE 4840 Embedded Systems Design, Spring 2026.
 
-The FPGA renders VGA output at 640x480@60 Hz using a hardware shape table, dual linebuffers, and a color-indexed palette. The HPS runs the game loop as a C program under Linux — managing the grid, plants, zombies, projectiles, sun economy, and keyboard input — and pushes shape descriptors to the FPGA each frame through a custom kernel driver and memory-mapped Avalon registers.
+The FPGA renders VGA output at 640x480@60 Hz using a hardware shape table, dual linebuffers, and a color-indexed palette. The HPS runs the game loop as a C program under Linux (grid state, plants, zombies, projectiles, sun economy, keyboard input) and pushes shape descriptors to the FPGA each frame through a custom kernel driver and memory-mapped Avalon registers.
 
 See [`doc/proposal/proposal.md`](doc/proposal/proposal.md) for the full design and [`doc/mvp_design_plan.md`](doc/mvp_design_plan.md) for the implementation plan.
 
 ## Current status
 
-**Milestone 1 (MVP) — complete.** Single-level playable demo with primitive-shape graphics (rectangles, circles, 7-segment digits), keyboard control, one plant type (Peashooter), and five zombies. No sprites, audio, or USB gamepad yet. See [`doc/milestone1.md`](doc/milestone1.md) for a detailed writeup of what was built and how the system works.
+**Milestone 1 (MVP) complete.** Single-level playable demo with primitive-shape graphics (rectangles, circles, 7-segment digits), keyboard control, one plant type (Peashooter), and five zombies. No sprites, audio, or USB gamepad yet. See [`doc/milestone1.md`](doc/milestone1.md) for details.
 
 ## Repository layout
 
