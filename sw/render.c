@@ -105,16 +105,19 @@ static void render_cursor(const game_state_t *gs)
 
 static void render_plants(const game_state_t *gs)
 {
+    /* Peashooter sprite: 32x32 source rendered at 2x -> 64x64 on screen.
+     * Cell is CELL_WIDTH x CELL_HEIGHT (80x90). Center the 64x64 in the cell:
+     *   x offset = (80 - 64) / 2 = 8
+     *   y offset = (90 - 64) / 2 = 13 */
     for (int r = 0; r < GRID_ROWS; r++) {
         for (int c = 0; c < GRID_COLS; c++) {
             int idx = IDX_PLANT_START + r * GRID_COLS + c;
             const plant_t *p = &gs->grid[r][c];
 
             if (p->type == PLANT_PEASHOOTER) {
-                int cx = c * CELL_WIDTH + 15;
-                int cy = GAME_AREA_Y + r * CELL_HEIGHT + 10;
-                /* Peashooter body: green rectangle */
-                write_shape(idx, SHAPE_RECT, 1, cx, cy, 50, 70, COL_GREEN);
+                int cx = c * CELL_WIDTH + 8;
+                int cy = GAME_AREA_Y + r * CELL_HEIGHT + 13;
+                write_shape(idx, SHAPE_SPRITE, 1, cx, cy, 64, 64, 0);
             } else {
                 hide_shape(idx);
             }

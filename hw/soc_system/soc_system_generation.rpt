@@ -42,6 +42,6 @@ Info: Reusing file /homes/user/stud/spring26/zz3410/csee4840/proj/4840-final-pro
 Info: avalon_st_adapter: "mm_interconnect_0" instantiated altera_avalon_st_adapter "avalon_st_adapter"
 Info: border: "hps_io" instantiated altera_interface_generator "border"
 Info: error_adapter_0: "avalon_st_adapter" instantiated error_adapter "error_adapter_0"
-Info: soc_system: Done "soc_system" with 21 modules, 84 files
+Info: soc_system: Done "soc_system" with 21 modules, 86 files
 Info: qsys-generate succeeded.
 Info: Finished: Create HDL design files for synthesis
