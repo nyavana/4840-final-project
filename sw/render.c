@@ -212,15 +212,21 @@ static void render_game_over(const game_state_t *gs)
 void render_frame(const game_state_t *gs)
 {
     render_background(gs);
-    render_plants(gs);
-    render_zombies(gs);
-    render_projectiles(gs);
 
     if (gs->state == STATE_PLAYING) {
+        render_plants(gs);
+        render_zombies(gs);
+        render_projectiles(gs);
         render_cursor(gs);
         render_hud(gs);
     } else {
+        /* Hide all entity slots so they don't cover the panel */
+        for (int i = 0; i < IDX_PLANT_COUNT; i++)
+            hide_shape(IDX_PLANT_START + i);
+        for (int i = 0; i < IDX_ZOMBIE_COUNT; i++)
+            hide_shape(IDX_ZOMBIE_START + i);
+        for (int i = 0; i < IDX_PEA_COUNT; i++)
+            hide_shape(IDX_PEA_START + i);
         render_game_over(gs);
-        render_hud(gs);
     }
 }
