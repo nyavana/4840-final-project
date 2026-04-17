@@ -1,0 +1,203 @@
+%% pvz-style.sty — "Plants vs Zombies on FPGA" document style package
+%%
+%% A self-contained LaTeX style package that applies the custom color
+%% palette, typography, section headings, table styles, code listing
+%% theme, caption style, and hyperref/TOC styling used in the project
+%% design document. Drop the file next to a .tex source and load with:
+%%
+%%     \documentclass[11pt,letterpaper]{article}
+%%     \usepackage{pvz-style}
+%%     \begin{document}
+%%       ...
+%%     \end{document}
+%%
+%% Palette reference: doc/design-document/color/color-design.jpg.
+%%
+%% Version history:
+%%   v1.0  2026-04-17  initial extraction from design-document.tex
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{pvz-style}[2026/04/17 v1.0 PvZ-on-FPGA design style]
+
+% ── Layout ──────────────────────────────────────────────────────────────
+\RequirePackage[margin=1in,top=1.2in,bottom=1.2in]{geometry}
+\RequirePackage{fancyhdr}
+
+% ── Typography ──────────────────────────────────────────────────────────
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{enumitem}
+\RequirePackage{parskip}
+\RequirePackage{microtype}
+\RequirePackage{etoolbox}
+\linespread{1.15}
+\setlength{\parskip}{0.7em plus 0.15em minus 0.1em}
+\setlength{\abovecaptionskip}{6pt}
+\setlength{\belowcaptionskip}{2pt}
+\setlength{\intextsep}{14pt}
+% Suppress parskip inside tabular/tabularx cells so p- and X-column
+% content doesn't pick up the extra top gap that the relaxed body
+% \parskip would otherwise introduce.
+\AtBeginEnvironment{tabular}{\setlength{\parskip}{0pt}}
+\AtBeginEnvironment{tabularx}{\setlength{\parskip}{0pt}}
+
+% ── Graphics & Color ────────────────────────────────────────────────────
+\RequirePackage{graphicx}
+\RequirePackage[dvipsnames,svgnames,x11names,table]{xcolor}
+\RequirePackage{float}
+
+% ── Palette ─────────────────────────────────────────────────────────────
+% Five primary colors extracted from the reference image, plus two
+% contrast helpers. White text is only permitted on Plum / Magenta /
+% Royal. Sky and Mist always carry `pvzInk` (or another dark) text.
+\definecolor{pvzPlum}   {RGB}{119,  41,  93} % #77295D — hero accent
+\definecolor{pvzMagenta}{RGB}{195,  79, 162} % #C34FA2 — HPS emphasis
+\definecolor{pvzMist}   {RGB}{237, 241, 253} % #EDF1FD — soft fills / bg
+\definecolor{pvzSky}    {RGB}{119, 183, 240} % #77B7F0 — FPGA emphasis
+\definecolor{pvzRoyal}  {RGB}{ 83, 100, 192} % #5364C0 — structural / links
+\definecolor{pvzInk}    {RGB}{ 26,  26,  26} % #1A1A1A — body text on light
+\definecolor{pvzOnDark} {RGB}{255, 255, 255} % #FFFFFF — text on dark fills
+
+% Role aliases — prefer these in figure/block code over the raw names
+% so the intent reads at the call site.
+\colorlet{pvzHPS}    {pvzMagenta}
+\colorlet{pvzFPGA}   {pvzSky}
+\colorlet{pvzBridge} {pvzPlum}
+
+% ── Tables ──────────────────────────────────────────────────────────────
+\RequirePackage{booktabs}
+\RequirePackage{multirow}
+\RequirePackage{tabularx}
+\RequirePackage{array}
+\RequirePackage{colortbl}
+% Force tabularx X-columns to raggedright with a leading \strut so the
+% first line sits at the same baseline as the `l`-column cells in the
+% same row (avoids a ~\baselineskip offset in header rows).
+\renewcommand{\tabularxcolumn}[1]{%
+  >{\setlength{\parskip}{0pt}\setlength{\parindent}{0pt}%
+    \raggedright\arraybackslash\strut\ignorespaces}p{#1}%
+}
+\arrayrulecolor{pvzPlum}
+\setlength{\heavyrulewidth}{1.4pt}
+\setlength{\lightrulewidth}{0.6pt}
+% Column-header macro — sans-serif bold in plum.
+\newcommand{\pvzTH}[1]{{\color{pvzPlum}\sffamily\bfseries #1}}
+% Zebra striping helper. Wrap a tabular in `{\pvzZebra \begin{tabular}... }`.
+\newcommand{\pvzZebra}{\rowcolors{2}{pvzMist!45}{white}}
+
+% ── Code Listings ───────────────────────────────────────────────────────
+\RequirePackage{listings}
+\lstdefinestyle{pvzListing}{%
+  basicstyle        = \ttfamily\small\color{pvzInk},
+  keywordstyle      = \bfseries\color{pvzPlum},
+  keywordstyle     =[2]\bfseries\color{pvzRoyal},
+  identifierstyle   = \color{pvzInk},
+  stringstyle       = \color{pvzMagenta},
+  commentstyle      = \itshape\color{black!48},
+  numberstyle       = \tiny\color{pvzPlum},
+  frame             = single,
+  rulecolor         = \color{pvzRoyal!40},
+  backgroundcolor   = \color{pvzMist!35},
+  framesep          = 6pt,
+  framerule         = 0.7pt,
+  xleftmargin       = 2.6em,
+  framexleftmargin  = 2.1em,
+  numbers           = left,
+  numbersep         = 10pt,
+  breaklines        = true,
+  captionpos        = t,
+  abovecaptionskip  = 4pt,
+  belowcaptionskip  = 6pt,
+  showstringspaces  = false,
+}
+% Two-tier keyword highlighting for C — tier-2 covers common type /
+% system names so they render in Royal rather than Plum.
+\lstdefinelanguage{pvzC}[]{C}{%
+  morekeywords=[2]{__u8,__u16,__u32,__u64,%
+                    uint8_t,uint16_t,uint32_t,uint64_t,%
+                    int8_t,int16_t,int32_t,int64_t,%
+                    size_t,ssize_t,bool,FILE,NULL,ioctl},
+}
+% Two-tier keyword highlighting for Verilog/SystemVerilog.
+\lstdefinelanguage{pvzVerilog}[]{Verilog}{%
+  morekeywords=[2]{logic,bit,integer,real,time,wire,reg,%
+                    parameter,localparam,genvar},
+}
+\lstset{style=pvzListing}
+
+% ── TikZ ────────────────────────────────────────────────────────────────
+\RequirePackage{tikz}
+\usetikzlibrary{
+  arrows.meta,
+  positioning,
+  shapes.geometric,
+  shapes.multipart,
+  calc,
+  decorations.pathreplacing,
+  fit,
+  backgrounds,
+  patterns,
+}
+
+% ── Section headings ────────────────────────────────────────────────────
+% `explicit` puts #1 (title body) under the user's control in the format
+% argument — required when nesting #1 inside a parbox / tabular / minipage.
+\RequirePackage[explicit]{titlesec}
+% Plum vertical bar used to the left of every \section title.
+\newcommand{\pvzSectionBar}{\textcolor{pvzPlum}{\rule[-0.55ex]{3pt}{3.2ex}}}
+\titleformat{\section}
+  {\normalfont\sffamily}
+  {}
+  {0pt}
+  {\pvzSectionBar\hspace{0.8em}%
+   \parbox[b]{0.88\textwidth}{%
+     \raggedright
+     {\color{pvzMagenta}\sffamily\scshape\bfseries\footnotesize SECTION~\thesection}\\[-2pt]
+     {\color{pvzInk}\LARGE\bfseries\sffamily #1}%
+   }}
+  [\vspace{2pt}{\color{pvzMist}\titlerule[0.8pt]}]
+\titleformat{\subsection}
+  {\normalfont\sffamily\bfseries}
+  {}
+  {0pt}
+  {{\color{pvzSky}\rule[-0.1em]{2pt}{1.05em}}\hspace{0.6em}%
+   {\color{pvzRoyal}\normalsize\sffamily\thesubsection\quad #1}}
+\titleformat{\subsubsection}
+  {\normalfont\sffamily\bfseries\color{pvzRoyal}}{\thesubsubsection}{1em}{#1}
+
+% ── Captions ────────────────────────────────────────────────────────────
+\RequirePackage[
+  labelfont={small,bf,sc,color=pvzPlum},
+  textfont={small},
+  labelsep=quad
+]{caption}
+\captionsetup[figure]{skip=6pt}
+\captionsetup[table]{skip=4pt}
+
+% ── Hyperlinks ──────────────────────────────────────────────────────────
+\RequirePackage[
+  colorlinks=true,
+  linkcolor=pvzRoyal,
+  urlcolor=pvzMagenta,
+  citecolor=pvzPlum,
+  filecolor=pvzRoyal
+]{hyperref}
+
+% ── Table of Contents ───────────────────────────────────────────────────
+\RequirePackage{tocloft}
+\renewcommand{\cftsecfont}       {\sffamily\bfseries\color{pvzInk}}
+\renewcommand{\cftsecpagefont}   {\sffamily\color{pvzRoyal}}
+\renewcommand{\cftsecpresnum}    {\color{pvzPlum}}
+\renewcommand{\cftsecaftersnum}  {\color{pvzInk}}
+\renewcommand{\cftsubsecfont}    {\sffamily\color{pvzInk}}
+\renewcommand{\cftsubsecpagefont}{\sffamily\color{pvzRoyal}}
+\renewcommand{\cftsubsecpresnum} {\color{pvzMagenta}}
+\renewcommand{\cftsubsecaftersnum}{\color{pvzInk}}
+\renewcommand{\cftdotsep}        {2.0}
+\renewcommand{\cftsecleader}     {\cftdotfill{\cftdotsep}}
+
+% ── Custom column types (convenience) ───────────────────────────────────
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\endinput
