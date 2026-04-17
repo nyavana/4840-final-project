@@ -2,7 +2,7 @@
 \documentclass[11pt,letterpaper]{article}
 
 % ── Layout ──────────────────────────────────────────────────────────────
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=1in,top=1.2in,bottom=1.2in]{geometry}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
@@ -14,31 +14,101 @@
 \usepackage{amsmath,amssymb}
 \usepackage{enumitem}
 \usepackage{parskip}
+\usepackage{microtype}
+\usepackage{etoolbox}
+\linespread{1.15}
+\setlength{\parskip}{0.7em plus 0.15em minus 0.1em}
+\setlength{\abovecaptionskip}{6pt}
+\setlength{\belowcaptionskip}{2pt}
+\setlength{\intextsep}{14pt}
+% Suppress parskip inside table cells so p-column / X-column content
+% doesn't pick up the extra top gap.
+\AtBeginEnvironment{tabular}{\setlength{\parskip}{0pt}}
+\AtBeginEnvironment{tabularx}{\setlength{\parskip}{0pt}}
+
+% ── Graphics & Color ────────────────────────────────────────────────────
+% (xcolor must be loaded before anything that references colors;
+%  the `table` option enables \rowcolors for zebra striping.)
+\usepackage{graphicx}
+\usepackage[dvipsnames,svgnames,x11names,table]{xcolor}
+\usepackage{float}
+
+% ── PvZ Palette ─────────────────────────────────────────────────────────
+% Extracted from doc/design-document/color/color-design.jpg
+\definecolor{pvzPlum}   {RGB}{119,  41,  93}   % #77295D — hero accent
+\definecolor{pvzMagenta}{RGB}{195,  79, 162}   % #C34FA2 — HPS emphasis
+\definecolor{pvzMist}   {RGB}{237, 241, 253}   % #EDF1FD — soft fills / backgrounds
+\definecolor{pvzSky}    {RGB}{119, 183, 240}   % #77B7F0 — FPGA emphasis
+\definecolor{pvzRoyal}  {RGB}{ 83, 100, 192}   % #5364C0 — structural / links
+\definecolor{pvzInk}    {RGB}{ 26,  26,  26}   % #1A1A1A — body text on light
+\definecolor{pvzOnDark} {RGB}{255, 255, 255}   % #FFFFFF — text on Plum/Magenta/Royal
+
+\colorlet{pvzHPS}    {pvzMagenta}
+\colorlet{pvzFPGA}   {pvzSky}
+\colorlet{pvzBridge} {pvzPlum}
 
 % ── Tables ──────────────────────────────────────────────────────────────
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{tabularx}
 \usepackage{array}
-
-% ── Graphics & Color ────────────────────────────────────────────────────
-\usepackage{graphicx}
-\usepackage[dvipsnames,svgnames,x11names]{xcolor}
-\usepackage{float}
+\usepackage{colortbl}
+% Force tabularx X-columns to raggedright with an explicit top-aligning
+% \strut at the start of the paragraph. Without this the `p{}` first
+% line sits ~\baselineskip below the `l` columns in the same row.
+\renewcommand{\tabularxcolumn}[1]{%
+  >{\setlength{\parskip}{0pt}\setlength{\parindent}{0pt}%
+    \raggedright\arraybackslash\strut\ignorespaces}p{#1}%
+}
+\arrayrulecolor{pvzPlum}
+\setlength{\heavyrulewidth}{1.4pt}
+\setlength{\lightrulewidth}{0.6pt}
+% \pvzTH: table column header. Sans-serif bold in plum, using the full
+% normal font size so the row-height metric matches the X-column
+% paragraph baseline in tabularx.
+\newcommand{\pvzTH}[1]{%
+  {\color{pvzPlum}\sffamily\bfseries #1}%
+}
+\newcommand{\pvzZebra}{\rowcolors{2}{pvzMist!45}{white}}
 
 % ── Code Listings ───────────────────────────────────────────────────────
 \usepackage{listings}
-\lstset{
-  basicstyle=\ttfamily\small,
-  keywordstyle=\bfseries\color{NavyBlue},
-  commentstyle=\color{ForestGreen},
-  frame=single,
-  breaklines=true,
-  numbers=left,
-  numberstyle=\tiny\color{gray},
-  xleftmargin=2em,
-  framexleftmargin=1.5em,
+\lstdefinestyle{pvzListing}{%
+  basicstyle        = \ttfamily\small\color{pvzInk},
+  keywordstyle      = \bfseries\color{pvzPlum},
+  keywordstyle     =[2]\bfseries\color{pvzRoyal},
+  identifierstyle   = \color{pvzInk},
+  stringstyle       = \color{pvzMagenta},
+  commentstyle      = \itshape\color{black!48},
+  numberstyle       = \tiny\color{pvzPlum},
+  frame             = single,
+  rulecolor         = \color{pvzRoyal!40},
+  backgroundcolor   = \color{pvzMist!35},
+  framesep          = 6pt,
+  framerule         = 0.7pt,
+  xleftmargin       = 2.6em,
+  framexleftmargin  = 2.1em,
+  numbers           = left,
+  numbersep         = 10pt,
+  breaklines        = true,
+  captionpos        = t,
+  abovecaptionskip  = 4pt,
+  belowcaptionskip  = 6pt,
+  showstringspaces  = false,
 }
+% Two-tier keyword lists: tier-2 covers common type/sys names so they
+% render in Royal rather than Plum.
+\lstdefinelanguage{pvzC}[]{C}{%
+  morekeywords=[2]{__u8,__u16,__u32,__u64,%
+                    uint8_t,uint16_t,uint32_t,uint64_t,%
+                    int8_t,int16_t,int32_t,int64_t,%
+                    size_t,ssize_t,bool,FILE,NULL,ioctl},
+}
+\lstdefinelanguage{pvzVerilog}[]{Verilog}{%
+  morekeywords=[2]{logic,bit,integer,real,time,wire,reg,%
+                    parameter,localparam,genvar},
+}
+\lstset{style=pvzListing}
 
 % ── TikZ ────────────────────────────────────────────────────────────────
 \usepackage{tikz}
@@ -54,8 +124,68 @@
   patterns,
 }
 
+% ── Section headings (titlesec) ─────────────────────────────────────────
+% titlesec must be loaded BEFORE hyperref so the section-link targets
+% track the restyled heading boxes. [explicit] makes #1 the title body,
+% required when nesting #1 inside parbox / tabular.
+\usepackage[explicit]{titlesec}
+\newcommand{\pvzSectionBar}{\textcolor{pvzPlum}{\rule[-0.55ex]{3pt}{3.2ex}}}
+
+\titleformat{\section}
+  {\normalfont\sffamily}
+  {}
+  {0pt}
+  {\pvzSectionBar\hspace{0.8em}%
+   \parbox[b]{0.88\textwidth}{%
+     \raggedright
+     {\color{pvzMagenta}\sffamily\scshape\bfseries\footnotesize SECTION~\thesection}\\[-2pt]
+     {\color{pvzInk}\LARGE\bfseries\sffamily #1}%
+   }}
+  [\vspace{2pt}{\color{pvzMist}\titlerule[0.8pt]}]
+
+\titleformat{\subsection}
+  {\normalfont\sffamily\bfseries}
+  {}
+  {0pt}
+  {{\color{pvzSky}\rule[-0.1em]{2pt}{1.05em}}\hspace{0.6em}%
+   {\color{pvzRoyal}\normalsize\sffamily\thesubsection\quad #1}}
+
+\titleformat{\subsubsection}
+  {\normalfont\sffamily\bfseries\color{pvzRoyal}}{\thesubsubsection}{1em}{#1}
+
+% ── Captions ────────────────────────────────────────────────────────────
+\usepackage[
+  labelfont={small,bf,sc,color=pvzPlum},
+  textfont={small},
+  labelsep=quad
+]{caption}
+\captionsetup[figure]{skip=6pt}
+\captionsetup[table]{skip=4pt}
+
 % ── Hyperlinks ──────────────────────────────────────────────────────────
-\usepackage[colorlinks=true,linkcolor=NavyBlue,urlcolor=RoyalBlue]{hyperref}
+\usepackage[
+  colorlinks=true,
+  linkcolor=pvzRoyal,
+  urlcolor=pvzMagenta,
+  citecolor=pvzPlum,
+  filecolor=pvzRoyal
+]{hyperref}
+
+% ── Table of Contents styling ───────────────────────────────────────────
+% tocloft exposes *font (applied to title text), *pagefont (page number)
+% and *presnum/*aftersnum (wrap the number). We use presnum/aftersnum
+% to color the section/subsection numbers.
+\usepackage{tocloft}
+\renewcommand{\cftsecfont}{\sffamily\bfseries\color{pvzInk}}
+\renewcommand{\cftsecpagefont}{\sffamily\color{pvzRoyal}}
+\renewcommand{\cftsecpresnum}{\color{pvzPlum}}
+\renewcommand{\cftsecaftersnum}{\color{pvzInk}}
+\renewcommand{\cftsubsecfont}{\sffamily\color{pvzInk}}
+\renewcommand{\cftsubsecpagefont}{\sffamily\color{pvzRoyal}}
+\renewcommand{\cftsubsecpresnum}{\color{pvzMagenta}}
+\renewcommand{\cftsubsecaftersnum}{\color{pvzInk}}
+\renewcommand{\cftdotsep}{2.0}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
 
 % ── Custom column types ─────────────────────────────────────────────────
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
@@ -67,15 +197,23 @@
 
 % ── Title ───────────────────────────────────────────────────────────────
 \begin{center}
-  {\LARGE\bfseries Plants vs Zombies on FPGA}\\[0.6em]
-  {\large CSEE 4840 Embedded System Design --- Spring 2026}\\[1.2em]
-  \begin{tabular}{llll}
-    Hao Cai & \texttt{hc3612} &
-    Chenhao Yang & \texttt{cy2822} \\
-    Zhenghang Zhao & \texttt{zz3410} &
-    Yabkun Li & \texttt{yl6022} \\
-  \end{tabular}\\[1.0em]
-  {\small Describes the repository as of commit \texttt{a6eb347} on \texttt{origin/main}
+  {\color{pvzInk}\sffamily\bfseries\Huge Plants vs~Zombies on FPGA}\par
+  \vspace{0.4em}
+  \noindent\begin{tikzpicture}
+    \shade[left color=pvzPlum, right color=pvzRoyal]
+      (0,0) rectangle (\linewidth, 2.5pt);
+  \end{tikzpicture}\par
+  \vspace{0.6em}
+  {\color{pvzRoyal}\sffamily\large CSEE 4840 Embedded System Design\;\textperiodcentered\;Spring 2026\;\textperiodcentered\;Design Document}\par
+  \vspace{1.6em}
+  {\sffamily\small
+   \begin{tabular}{llll}
+     \textcolor{pvzMagenta}{Hao Cai}           & \texttt{hc3612} &
+     \textcolor{pvzMagenta}{Chenhao Yang}      & \texttt{cy2822} \\
+     \textcolor{pvzMagenta}{Zhenghang Zhao}    & \texttt{zz3410} &
+     \textcolor{pvzMagenta}{Yabkun Li}         & \texttt{yl6022} \\
+   \end{tabular}}\\[1.0em]
+  {\small\color{pvzInk!70} Describes the repository as of commit \texttt{a6eb347} on \texttt{origin/main}
    (merge of branch \texttt{v2Dino}).}
 \end{center}
 
@@ -131,20 +269,22 @@ side is expanded in Figure~\ref{fig:sw-stack}.
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   >=Stealth,
-  hps/.style   ={draw, rounded corners=3pt, minimum height=1.8cm,
+  hps/.style   ={draw=pvzMagenta, line width=0.9pt,
+                 rounded corners=3pt, minimum height=1.8cm,
                  minimum width=3.6cm, align=center, font=\small\sffamily,
-                 fill=blue!10},
-  periph/.style={draw, rounded corners=3pt, minimum height=1.8cm,
+                 text=pvzOnDark, fill=pvzMagenta},
+  periph/.style={draw=pvzRoyal, line width=0.9pt,
+                 rounded corners=3pt, minimum height=1.8cm,
                  minimum width=3.6cm, align=center, font=\small\sffamily,
-                 fill=orange!15},
-  ext/.style   ={draw, rounded corners=3pt, minimum height=1.2cm,
+                 text=pvzInk, fill=pvzSky},
+  ext/.style   ={draw=gray!50, rounded corners=3pt, minimum height=1.2cm,
                  minimum width=2.4cm, align=center, font=\small\sffamily,
-                 fill=green!10},
-  bus/.style   ={->, thick},
-  dbus/.style  ={<->, thick},
+                 text=pvzInk, fill=pvzMist},
+  bus/.style   ={->, thick, color=pvzRoyal},
+  dbus/.style  ={<->, thick, color=pvzRoyal},
   dashbus/.style={->, thick, dashed, color=gray!70},
   elbl/.style  ={font=\scriptsize\sffamily, fill=white, inner sep=2pt,
-                 align=center, midway, above},
+                 align=center, midway, above, text=pvzInk},
 ]
   % Row layout: generous horizontal spacing so one-word edge labels fit
   \node[ext]    (pad)    at (-5.5, 0) {USB\\gamepad};
@@ -162,9 +302,9 @@ side is expanded in Figure~\ref{fig:sw-stack}.
   \draw[dashbus](periph.east) -| (codec.north) node[elbl, pos=0.25, below] {I\textsuperscript{2}S + I\textsuperscript{2}C};
 
   % Region legends well clear of the arrows
-  \node[font=\scriptsize\sffamily, color=blue!60]   at (hps.south)    [below=14pt] {(HPS side)};
-  \node[font=\scriptsize\sffamily, color=orange!70] at (periph.south) [below=14pt] {(FPGA side)};
-  \node[font=\scriptsize\sffamily, color=gray!70]   at (codec.south)  [below=6pt]  {\emph{planned}};
+  \node[font=\scriptsize\sffamily, color=pvzMagenta]   at (hps.south)    [below=14pt] {(HPS side)};
+  \node[font=\scriptsize\sffamily, color=pvzRoyal]     at (periph.south) [below=14pt] {(FPGA side)};
+  \node[font=\scriptsize\sffamily, color=gray!70]      at (codec.south)  [below=6pt]  {\emph{planned}};
 
 \end{tikzpicture}%
 }
@@ -193,7 +333,7 @@ parameters.
 \label{tab:modules}
 \begin{tabularx}{\textwidth}{l l X}
 \toprule
-\textbf{Module} & \textbf{Type} & \textbf{Description} \\
+\pvzTH{Module} & \pvzTH{Type} & \pvzTH{Description} \\
 \midrule
 \texttt{pvz\_top}        & Avalon-MM agent
   & Top-level peripheral.\ Decodes five 32-bit registers on the lightweight
@@ -241,18 +381,21 @@ is the actual Verilog signal width, not a conceptual one.
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   >=Stealth,
-  mem/.style={draw, rounded corners=2pt, minimum height=1.4cm,
-              minimum width=3.2cm, align=center, font=\small\sffamily,
-              fill=purple!10},
-  logic/.style={draw, rounded corners=2pt, minimum height=1.4cm,
-                minimum width=3.2cm, align=center, font=\small\sffamily,
-                fill=orange!15},
-  io/.style={draw, rounded corners=2pt, minimum height=1.2cm,
-             minimum width=2.4cm, align=center, font=\small\sffamily,
-             fill=blue!10},
-  bus/.style={->, thick},
-  cidx/.style={circle, draw, thick, fill=white, inner sep=0pt,
-               minimum size=13pt,
+  mem/.style={draw=pvzPlum, line width=0.7pt, rounded corners=2pt,
+              minimum height=1.4cm, minimum width=3.2cm,
+              align=center, font=\small\sffamily,
+              text=pvzInk, fill=pvzMist},
+  logic/.style={draw=pvzRoyal, line width=0.7pt, rounded corners=2pt,
+                minimum height=1.4cm, minimum width=3.2cm,
+                align=center, font=\small\sffamily,
+                text=pvzInk, fill=pvzSky},
+  io/.style={draw=pvzRoyal, line width=0.7pt, rounded corners=2pt,
+             minimum height=1.2cm, minimum width=2.4cm,
+             align=center, font=\small\sffamily,
+             text=pvzInk, fill=pvzMist},
+  bus/.style={->, thick, color=pvzRoyal},
+  cidx/.style={circle, draw=pvzPlum, thick, fill=white, text=pvzPlum,
+               inner sep=0pt, minimum size=13pt,
                font=\scriptsize\sffamily\bfseries, midway},
 ]
   % vga_counters spans the top — one timing source for everyone
@@ -292,16 +435,17 @@ is the actual Verilog signal width, not a conceptual one.
 
   % Region box
   \begin{scope}[on background layer]
-    \node[draw=orange!50, dashed, rounded corners=4pt,
+    \node[draw=pvzRoyal!60, dashed, rounded corners=4pt,
           fit=(av)(st)(bg)(sr)(vc)(rend)(lb)(pal)(vga),
           inner sep=12pt,
-          label={[font=\small\sffamily\bfseries, orange!70]above:%
+          label={[font=\small\sffamily\bfseries, text=pvzRoyal]above:%
                  \texttt{pvz\_top} (inside the FPGA fabric)}] {};
   \end{scope}
 \end{tikzpicture}%
 }
-\caption{Inside \texttt{pvz\_top}. Memories are shaded purple, combinational
-  logic and FSMs orange, Avalon-facing I/O blue. Each arrow is
+\caption{Inside \texttt{pvz\_top}. Memories carry a plum outline, FSM and
+  combinational logic use the filled-sky style, Avalon-facing I/O is
+  mist-lavender with a royal border. Each arrow is
   numbered; Table~\ref{tab:fig-pi-key} names the signals and widths.
   The sprite ROM carries a 1-cycle read latency, so
   \texttt{shape\_renderer} issues the address on arrow~5 one cycle
@@ -318,7 +462,7 @@ is the actual Verilog signal width, not a conceptual one.
 \label{tab:fig-pi-key}
 \begin{tabular}{c l l p{6.3cm}}
 \toprule
-\textbf{\#} & \textbf{From} & \textbf{To} & \textbf{Signals (width)}\\
+\pvzTH{\#} & \pvzTH{From} & \pvzTH{To} & \pvzTH{Signals (width)}\\
 \midrule
 1 & Avalon decode & \texttt{shape\_table}
   & \texttt{addr\_wr}, \texttt{data0/1\_wr}, \texttt{commit\_wr};
@@ -426,9 +570,10 @@ earlier ones. Software therefore allocates indices by stacking layer:
 \centering
 \caption{Shape-table index allocation (from \texttt{sw/render.c}).}
 \label{tab:shape-idx}
+{\pvzZebra
 \begin{tabular}{c l l}
 \toprule
-\textbf{Indices} & \textbf{Slot} & \textbf{Role} \\
+\pvzTH{Indices} & \pvzTH{Slot} & \pvzTH{Role} \\
 \midrule
 \texttt{0--31}   & Plants      & One slot per grid cell (4 rows $\times$ 8 cols). \\
 \texttt{32--36}  & Zombies     & \texttt{MAX\_ZOMBIES} = 5 active at once. \\
@@ -436,7 +581,7 @@ earlier ones. Software therefore allocates indices by stacking layer:
 \texttt{43--46}  & HUD digits  & Up to 4 7-segment digits for the sun counter. \\
 \texttt{47}      & Cursor      & Yellow cell highlight; drawn last so it never hides behind a plant. \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 The layout is the fix landed in commit \texttt{dc297d4}: an earlier
@@ -503,7 +648,7 @@ timing parameters.
 \label{tab:vga-timing}
 \begin{tabular}{l r r l}
 \toprule
-\textbf{Parameter}   & \textbf{Pixels/Lines} & \textbf{Clocks (50\,MHz)} & \textbf{Notes} \\
+\pvzTH{Parameter}   & \pvzTH{Pixels/Lines} & \pvzTH{Clocks (50\,MHz)} & \pvzTH{Notes} \\
 \midrule
 H Active             & 640 px    & 1280  & Visible pixels \\
 H Front Porch        & 16 px     & 32    & \\
@@ -554,32 +699,32 @@ govern the pipeline:
     (7.5,0) -- (12.5,0) node[midway, above=6pt, label] {Blanking (1280--1599)};
 
   % lb_swap pulse
-  \draw[sig, blue] (0,-0.8) -- (0.3,-0.8);
-  \draw[sig, blue] (0.3,-0.8) -- (0.3,-0.3);
-  \draw[sig, blue] (0.3,-0.3) -- (0.6,-0.3);
-  \draw[sig, blue] (0.6,-0.3) -- (0.6,-0.8);
-  \draw[sig, blue] (0.6,-0.8) -- (3,-0.8);
-  \node[left, label, blue] at (0,-0.55) {\texttt{lb\_swap}};
+  \draw[sig, color=pvzPlum] (0,-0.8) -- (0.3,-0.8);
+  \draw[sig, color=pvzPlum] (0.3,-0.8) -- (0.3,-0.3);
+  \draw[sig, color=pvzPlum] (0.3,-0.3) -- (0.6,-0.3);
+  \draw[sig, color=pvzPlum] (0.6,-0.3) -- (0.6,-0.8);
+  \draw[sig, color=pvzPlum] (0.6,-0.8) -- (3,-0.8);
+  \node[left, label, text=pvzPlum] at (0,-0.55) {\texttt{lb\_swap}};
 
   % render_start pulse
-  \draw[sig, red] (0,-1.6) -- (0.5,-1.6);
-  \draw[sig, red] (0.5,-1.6) -- (0.5,-1.1);
-  \draw[sig, red] (0.5,-1.1) -- (0.8,-1.1);
-  \draw[sig, red] (0.8,-1.1) -- (0.8,-1.6);
-  \draw[sig, red] (0.8,-1.6) -- (3,-1.6);
-  \node[left, label, red] at (0,-1.35) {\texttt{render\_start}};
+  \draw[sig, color=pvzMagenta] (0,-1.6) -- (0.5,-1.6);
+  \draw[sig, color=pvzMagenta] (0.5,-1.6) -- (0.5,-1.1);
+  \draw[sig, color=pvzMagenta] (0.5,-1.1) -- (0.8,-1.1);
+  \draw[sig, color=pvzMagenta] (0.8,-1.1) -- (0.8,-1.6);
+  \draw[sig, color=pvzMagenta] (0.8,-1.6) -- (3,-1.6);
+  \node[left, label, text=pvzMagenta] at (0,-1.35) {\texttt{render\_start}};
 
   % Renderer active
-  \draw[sig, orange, fill=orange!15]
+  \draw[sig, color=pvzRoyal, fill=pvzSky!35]
     (0.8,-2.4) rectangle (6.5,-1.9);
   \node[label] at (3.65,-2.15) {Renderer filling buffer B};
-  \node[left, label, orange] at (0,-2.15) {\texttt{renderer}};
+  \node[left, label, text=pvzRoyal] at (0,-2.15) {\texttt{renderer}};
 
   % Display read
-  \draw[sig, ForestGreen, fill=ForestGreen!12]
+  \draw[sig, color=pvzSky, fill=pvzMist]
     (0,-3.2) rectangle (7.5,-2.7);
   \node[label] at (3.75,-2.95) {DAC reading buffer A};
-  \node[left, label, ForestGreen] at (0,-2.95) {\texttt{display}};
+  \node[left, label, text=pvzRoyal] at (0,-2.95) {\texttt{display}};
 
 \end{tikzpicture}
 \caption{Per-scanline timing. \texttt{lb\_swap} pulses at
@@ -597,17 +742,19 @@ govern the pipeline:
 \begin{tikzpicture}[
   >=Stealth,
   blk/.style={draw, rounded corners=2pt, minimum height=1.0cm,
-              minimum width=2.6cm, align=center, font=\small\sffamily},
-  mem/.style={blk, fill=purple!10},
-  logic/.style={blk, fill=orange!15},
-  ext/.style={blk, fill=green!10},
-  writebus/.style={->, thick, color=BlueViolet},
-  readbus/.style={->, thick, color=ForestGreen},
-  swap/.style={<->, thick, dashed, color=red},
+              minimum width=2.6cm, align=center, font=\small\sffamily,
+              text=pvzInk},
+  mem/.style={blk, fill=pvzMist, draw=pvzPlum, line width=0.7pt},
+  logic/.style={blk, fill=pvzSky, draw=pvzRoyal, line width=0.7pt},
+  ext/.style={blk, fill=pvzMist, draw=gray!40},
+  writebus/.style={->, thick, color=pvzPlum},
+  readbus/.style={->, thick, color=pvzSky},
+  swap/.style={<->, thick, dashed, color=pvzMagenta},
   % No fill on short labels — they sit in empty space between nodes and
   % don't need to mask the arrow. `pos=0.45` keeps them away from the
   % destination box's edge.
-  lbl/.style={font=\scriptsize\sffamily, align=center, pos=0.45, above=2pt},
+  lbl/.style={font=\scriptsize\sffamily, align=center, pos=0.45, above=2pt,
+              text=pvzInk},
 ]
   % Sources: wider vertical spacing
   \node[mem]   (st)  at (0, 1.8)  {\texttt{shape\_table}};
@@ -642,21 +789,22 @@ govern the pipeline:
     node[font=\scriptsize\sffamily, align=center, midway, right=4pt] {swap\\(hsync)};
 
   % Legend placed in empty upper-right corner, far from any node
-  \node[font=\scriptsize\sffamily, align=left, fill=gray!5, draw=gray!30,
+  \node[font=\scriptsize\sffamily, align=left, fill=pvzMist!60,
+        draw=pvzRoyal!30, text=pvzInk,
         rounded corners=2pt, inner sep=4pt]
        at (14.5, 2.0)
-       {\textcolor{BlueViolet}{$\rightarrow$} renderer writing\\[1pt]
-        \textcolor{ForestGreen}{$\rightarrow$} DAC reading\\[1pt]
-        \textcolor{red}{$\leftrightarrow$} hsync swap};
+       {\textcolor{pvzPlum}{$\rightarrow$} renderer writing\\[1pt]
+        \textcolor{pvzSky}{$\rightarrow$} DAC reading\\[1pt]
+        \textcolor{pvzMagenta}{$\leftrightarrow$} hsync swap};
 \end{tikzpicture}%
 }
 \caption{Scanline dataflow. During scanline $N$, the DAC drains line
-  buffer A (green path, reading 8-bit palette indices that
+  buffer A (sky-blue path, reading 8-bit palette indices that
   \texttt{color\_palette} expands to 24-bit R/G/B) while the renderer
   fills line buffer B from \texttt{shape\_table} (48-bit entry),
   \texttt{bg\_grid} (8-bit colour), and \texttt{sprite\_rom} (8-bit
   pixel), issuing \texttt{wr\_en}/\texttt{wr\_addr[9:0]}/\texttt{wr\_data[7:0]}
-  on the violet write port. At \texttt{hcount}\,=\,0 the
+  on the plum write port. At \texttt{hcount}\,=\,0 the
   \texttt{lb\_swap} pulse toggles the \texttt{sel} flip-flop in
   \texttt{linebuffer.sv}, so on line $N{+}1$ the roles reverse and no
   pixel ever needs to cross buffers.}
@@ -829,7 +977,7 @@ properties.
 \label{tab:plants}
 \begin{tabular}{l r r l}
 \toprule
-\textbf{Plant} & \textbf{Sun Cost} & \textbf{HP (relative)} & \textbf{Behavior} \\
+\pvzTH{Plant} & \pvzTH{Sun Cost} & \pvzTH{HP (relative)} & \pvzTH{Behavior} \\
 \midrule
 Peashooter & 50 & 3 HP & Fires a pea down its row every 2\,s \\
 Sunflower  &  50 & $1\times$  & Produces 25 sun every 10\,s \\
@@ -849,7 +997,7 @@ same speed and eat any plant they reach.
 \label{tab:zombies}
 \begin{tabular}{l r l}
 \toprule
-\textbf{Zombie} & \textbf{HP (relative)} & \textbf{Notes} \\
+\pvzTH{Zombie} & \pvzTH{HP (relative)} & \pvzTH{Notes} \\
 \midrule
 Basic      & $1\times$  & Goes down quickly \\
 Conehead   & $2\times$  & Traffic cone absorbs extra hits \\
@@ -892,7 +1040,7 @@ Table~\ref{tab:gfx-mem} breaks down sprite storage. All sprites use
 \label{tab:gfx-mem}
 \begin{tabular}{l r r r r}
 \toprule
-\textbf{Category} & \textbf{Size (px)} & \textbf{Frames} & \textbf{Bits/sprite} & \textbf{Total (bits)} \\
+\pvzTH{Category} & \pvzTH{Size (px)} & \pvzTH{Frames} & \pvzTH{Bits/sprite} & \pvzTH{Total (bits)} \\
 \midrule
 Peashooter       & $48\times48$ & 4 & 18{,}432 &  73{,}728 \\
 Sunflower        & $48\times48$ & 4 & 18{,}432 &  73{,}728 \\
@@ -920,7 +1068,7 @@ Digit font (0--9)& $20\times30$ & 10&  4{,}800 &  48{,}000 \\
 \label{tab:audio-mem}
 \begin{tabular}{l r r r r}
 \toprule
-\textbf{Clip} & \textbf{Duration (s)} & \textbf{$f_s$ (kHz)} & \textbf{Samples} & \textbf{Bits} \\
+\pvzTH{Clip} & \pvzTH{Duration (s)} & \pvzTH{$f_s$ (kHz)} & \pvzTH{Samples} & \pvzTH{Bits} \\
 \midrule
 Background music  & 15.0 & 8 & 120{,}000 & 1{,}920{,}000 \\
 Pea fire          &  0.3 & 8 &   2{,}400 &    38{,}400 \\
@@ -946,7 +1094,7 @@ Victory           &  3.0 & 8 &  24{,}000 &   384{,}000 \\
 \label{tab:sram}
 \begin{tabular}{l r r p{4.5cm}}
 \toprule
-\textbf{Component} & \textbf{Actual (b)} & \textbf{Projected (b)} & \textbf{Notes} \\
+\pvzTH{Component} & \pvzTH{Actual (b)} & \pvzTH{Projected (b)} & \pvzTH{Notes} \\
 \midrule
 Line buffers (2$\times$640$\times$8)    & 10{,}240 & 10{,}240 & Dual scanline buffers \\
 Shape table (48 entries $\times$ 48)     &  4{,}608 &  4{,}608 & Shadow + active \\
@@ -1027,10 +1175,11 @@ when each field becomes visible to the renderer.
   effect for the display.}
 \label{tab:regmap}
 \small
+{\pvzZebra
 \begin{tabular}{c l c >{\raggedright\arraybackslash}p{4.8cm} >{\raggedright\arraybackslash}p{3.0cm} l}
 \toprule
-\textbf{Offset} & \textbf{Name} & \textbf{R/W}
-  & \textbf{Write causes} & \textbf{Read returns} & \textbf{Latency}\\
+\pvzTH{Offset} & \pvzTH{Name} & \pvzTH{R/W}
+  & \pvzTH{Write causes} & \pvzTH{Read returns} & \pvzTH{Latency}\\
 \midrule
 \texttt{0x00} & \texttt{BG\_CELL}
   & W
@@ -1064,7 +1213,7 @@ when each field becomes visible to the renderer.
   & \texttt{0} (no readback).
   & Next vsync\\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \subsubsection{\texttt{BG\_CELL} --- Background grid cell (offset \texttt{0x00})}
@@ -1072,7 +1221,7 @@ when each field becomes visible to the renderer.
 \begin{table}[H]\centering\small
 \begin{tabular}{c l p{9cm}}
 \toprule
-\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\pvzTH{Bits} & \pvzTH{Field} & \pvzTH{Meaning}\\
 \midrule
 \texttt{[2:0]}  & \texttt{col}   & Grid column (0--7).\\
 \texttt{[4:3]}  & \texttt{row}   & Grid row (0--3).\\
@@ -1097,7 +1246,7 @@ active simultaneously.
 \begin{table}[H]\centering\small
 \begin{tabular}{c l p{9cm}}
 \toprule
-\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\pvzTH{Bits} & \pvzTH{Field} & \pvzTH{Meaning}\\
 \midrule
 \texttt{[5:0]} & \texttt{index} & Shape slot selected for the next
                                   \texttt{SHAPE\_COMMIT} (0--47).\\
@@ -1119,7 +1268,7 @@ active simultaneously.
 \begin{table}[H]\centering\small
 \begin{tabular}{c l p{8.3cm}}
 \toprule
-\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\pvzTH{Bits} & \pvzTH{Field} & \pvzTH{Meaning}\\
 \midrule
 \texttt{[1:0]}   & \texttt{type}    & 0=rect, 1=circle, 2=7-seg digit, 3=sprite.\\
 \texttt{[2]}     & \texttt{visible} & 1 = draw, 0 = skipped in \textsc{S\_SHAPE\_CHECK}.\\
@@ -1145,7 +1294,7 @@ on the next clock. Nothing else changes yet.
 \begin{table}[H]\centering\small
 \begin{tabular}{c l p{8.3cm}}
 \toprule
-\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\pvzTH{Bits} & \pvzTH{Field} & \pvzTH{Meaning}\\
 \midrule
 \texttt{[8:0]}   & \texttt{w}     & Width; for \texttt{type = 2}, \texttt{w[3:0]}
                                     encodes the digit value (see \S\ref{sec:shape-entry}).\\
@@ -1168,7 +1317,7 @@ on the next clock.
 \begin{table}[H]\centering\small
 \begin{tabular}{c l p{9cm}}
 \toprule
-\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\pvzTH{Bits} & \pvzTH{Field} & \pvzTH{Meaning}\\
 \midrule
 \texttt{[31:0]} & \texttt{commit} & Any nonzero word triggers commit; zero is a no-op.\\
 \bottomrule
@@ -1179,7 +1328,7 @@ on the next clock.
 the staging registers into \texttt{shadow[cur\_addr]} on the next
 clock, using this field order:
 
-\begin{lstlisting}[language=Verilog, numbers=none, basicstyle=\ttfamily\footnotesize]
+\begin{lstlisting}[language=pvzVerilog, numbers=none, basicstyle=\ttfamily\footnotesize]
 shadow[cur_addr] <= {
     staged_data1[25:18], // color -> bits [47:40]
     staged_data1[17:9],  // h     -> bits [39:31]
@@ -1249,16 +1398,20 @@ four \texttt{type} values; the interpretation of \texttt{w},
 \centering
 \begin{tikzpicture}[
   font=\small\ttfamily,
-  box/.style={draw, minimum height=0.8cm, anchor=west},
+  box/.style={draw=pvzInk!25, minimum height=0.8cm, anchor=west, text=pvzInk},
 ]
-  % Bit field boxes
-  \node[box, fill=red!12,    minimum width=1.6cm] (type) at (0,0) {type};
-  \node[box, fill=yellow!15, minimum width=0.8cm, right=0pt of type] (vis) {V};
-  \node[box, fill=blue!10,   minimum width=2.4cm, right=0pt of vis]  (xf)  {x[9:0]};
-  \node[box, fill=green!10,  minimum width=2.2cm, right=0pt of xf]   (yf)  {y[8:0]};
-  \node[box, fill=orange!12, minimum width=2.2cm, right=0pt of yf]   (wf)  {w[8:0]};
-  \node[box, fill=purple!10, minimum width=2.2cm, right=0pt of wf]   (hf)  {h[8:0]};
-  \node[box, fill=cyan!12,   minimum width=2.0cm, right=0pt of hf]   (cf)  {color};
+  % Bit field boxes — grouped by role:
+  %   meta (type, V)   → warm tints
+  %   coords (x, y)    → mist with sky border
+  %   dims (w, h)      → sky tint
+  %   color            → magenta tint
+  \node[box, fill=pvzPlum!25,    minimum width=1.6cm] (type) at (0,0) {type};
+  \node[box, fill=pvzMagenta!40, minimum width=0.8cm, right=0pt of type] (vis) {V};
+  \node[box, fill=pvzMist, draw=pvzSky, minimum width=2.4cm, right=0pt of vis]  (xf)  {x[9:0]};
+  \node[box, fill=pvzMist, draw=pvzSky, minimum width=2.2cm, right=0pt of xf]   (yf)  {y[8:0]};
+  \node[box, fill=pvzSky!40,     minimum width=2.2cm, right=0pt of yf]   (wf)  {w[8:0]};
+  \node[box, fill=pvzSky!40,     minimum width=2.2cm, right=0pt of wf]   (hf)  {h[8:0]};
+  \node[box, fill=pvzMagenta!25, minimum width=2.0cm, right=0pt of hf]   (cf)  {color};
 
   % Bit numbers
   \node[above=2pt, font=\scriptsize] at (type.north west) {1:0};
@@ -1299,7 +1452,7 @@ register. Audio and a frame-sync status read are genuinely new:
 \label{tab:planned-regs}
 \begin{tabular}{c l l}
 \toprule
-\textbf{Offset} & \textbf{Name} & \textbf{Purpose} \\
+\pvzTH{Offset} & \pvzTH{Name} & \pvzTH{Purpose} \\
 \midrule
 \texttt{0x14} & AUDIO\_CTRL    & Start/stop BGM, trigger sound effect \\
 \texttt{0x18} & AUDIO\_ADDR    & Wave ROM start address for sound effect \\
@@ -1323,18 +1476,21 @@ loop to a peripheral register write.
 \centering
 \begin{tikzpicture}[
   >=Stealth,
-  us/.style   ={draw, rounded corners=2pt, fill=blue!10,
+  us/.style   ={draw=pvzMagenta, line width=0.7pt, rounded corners=2pt,
+                fill=pvzMist, text=pvzInk,
                 minimum width=6.2cm, minimum height=1.1cm,
                 align=center, font=\small\sffamily},
-  kern/.style ={draw, rounded corners=2pt, fill=orange!15,
+  kern/.style ={draw=pvzMagenta, line width=0.9pt, rounded corners=2pt,
+                fill=pvzMagenta, text=pvzOnDark,
+                minimum width=6.2cm, minimum height=1.1cm,
+                align=center, font=\small\sffamily\bfseries},
+  fabric/.style={draw=pvzRoyal, line width=0.9pt, rounded corners=2pt,
+                fill=pvzSky, text=pvzInk,
                 minimum width=6.2cm, minimum height=1.1cm,
                 align=center, font=\small\sffamily},
-  fabric/.style={draw, rounded corners=2pt, fill=purple!12,
-                minimum width=6.2cm, minimum height=1.1cm,
-                align=center, font=\small\sffamily},
-  bus/.style  ={->, very thick},
+  bus/.style  ={->, very thick, color=pvzRoyal},
   elbl/.style ={font=\scriptsize\sffamily, fill=white, inner sep=2pt,
-                align=left, anchor=west},
+                align=left, anchor=west, text=pvzInk},
 ]
   % Stack, top to bottom, with 2.0cm vertical spacing so multi-line edge
   % labels cannot reach the next node.
@@ -1371,11 +1527,11 @@ loop to a peripheral register write.
     {peripheral word \texttt{address} $\in \{0\ldots 4\}$};
 
   % Region labels on the left, vertically centred in each region
-  \node[font=\footnotesize\sffamily\bfseries, color=blue!60,
+  \node[font=\footnotesize\sffamily\bfseries, color=pvzMagenta,
         anchor=east] at (-3.5, 3.0) {User space};
-  \node[font=\footnotesize\sffamily\bfseries, color=orange!70,
+  \node[font=\footnotesize\sffamily\bfseries, color=pvzPlum,
         anchor=east] at (-3.5,-2.0) {Kernel};
-  \node[font=\footnotesize\sffamily\bfseries, color=purple!60,
+  \node[font=\footnotesize\sffamily\bfseries, color=pvzRoyal,
         anchor=east] at (-3.5,-6.0) {FPGA fabric};
 \end{tikzpicture}%
 \caption{Software stack. Each frame, \texttt{render\_frame} calls
@@ -1397,7 +1553,7 @@ The driver exposes three \texttt{ioctl} commands:
 \label{tab:ioctls}
 \begin{tabular}{l l l}
 \toprule
-\textbf{ioctl} & \textbf{Argument} & \textbf{Action} \\
+\pvzTH{ioctl} & \pvzTH{Argument} & \pvzTH{Action} \\
 \midrule
 \texttt{PVZ\_WRITE\_BG}
   & \texttt{pvz\_bg\_arg\_t}
@@ -1414,7 +1570,7 @@ The driver exposes three \texttt{ioctl} commands:
 
 The argument structures are:
 
-\begin{lstlisting}[language=C, caption={Driver argument structures.}]
+\begin{lstlisting}[language=pvzC, caption={Driver argument structures.}]
 typedef struct {
     unsigned char col;    // 0-8
     unsigned char row;    // 0-4
@@ -1463,7 +1619,7 @@ The final version will expand this to cover all sprite artwork.
 \label{tab:palette}
 \begin{tabular}{c l c}
 \toprule
-\textbf{Index} & \textbf{Name} & \textbf{RGB (hex)} \\
+\pvzTH{Index} & \pvzTH{Name} & \pvzTH{RGB (hex)} \\
 \midrule
 0  & Black        & \texttt{000000} \\
 1  & Dark Green   & \texttt{1B5E20} \\
@@ -1497,7 +1653,7 @@ using non-blocking \texttt{read()} calls with \texttt{O\_NONBLOCK}.
 \label{tab:controls}
 \begin{tabular}{l l l}
 \toprule
-\textbf{Button} & \textbf{Keyboard Fallback} & \textbf{Action} \\
+\pvzTH{Button} & \pvzTH{Keyboard Fallback} & \pvzTH{Action} \\
 \midrule
 D-pad Up    & Arrow Up    & Move cursor up one row \\
 D-pad Down  & Arrow Down  & Move cursor down one row \\
@@ -1535,9 +1691,9 @@ divided.
   \draw[very thick] (0,0) rectangle ({640*\sx},{480*\sy});
 
   % HUD region
-  \draw[region, fill=gray!15]
+  \draw[region, fill=pvzMist]
     (0, 0) rectangle ({640*\sx}, {60*\sy});
-  \node at ({320*\sx}, {30*\sy}) {HUD: Plant Cards \quad Sun Counter \quad Wave Indicator};
+  \node[text=pvzInk] at ({320*\sx}, {30*\sy}) {HUD: Plant Cards \quad Sun Counter \quad Wave Indicator};
 
   % Grid region: 4 rows x 8 cols, 80x90 px per cell
   \foreach \r in {0,...,3} {
@@ -1570,7 +1726,7 @@ divided.
   \node[anchor=south]
     at ({320*\sx}, {480*\sy + 0.15})
     {\small 640 pixels};
-  \node[anchor=south, font=\scriptsize\sffamily, text=gray]
+  \node[anchor=south, font=\scriptsize\sffamily, text=pvzRoyal]
     at ({320*\sx}, {480*\sy + 0.55})
     {8 columns $\times$ 80\,px each};
 
@@ -1651,7 +1807,7 @@ identifiers a user-space or kernel-module reader needs are included.
 \subsection{\texttt{sw/pvz.h} --- shared ioctl and bitfield contract}
 \label{app:pvz-h}
 
-\begin{lstlisting}[language=C]
+\begin{lstlisting}[language=pvzC]
 #ifndef _PVZ_H
 #define _PVZ_H
 
@@ -1700,7 +1856,7 @@ typedef struct {
 \subsection{\texttt{sw/pvz\_driver.h} --- kernel-side device state}
 \label{app:pvz-driver-h}
 
-\begin{lstlisting}[language=C]
+\begin{lstlisting}[language=pvzC]
 #ifndef _PVZ_DRIVER_H
 #define _PVZ_DRIVER_H
 
@@ -1724,7 +1880,7 @@ struct pvz_dev {
 source for the full type definitions; constants match
 Table~\ref{tab:plants} and the timing numbers in \S\ref{sec:algo-gameloop}):
 
-\begin{lstlisting}[language=C]
+\begin{lstlisting}[language=pvzC]
 /* Grid + window constants (subset) */
 #define GRID_ROWS     4
 #define GRID_COLS     8
@@ -1742,7 +1898,7 @@ int  game_remove_plant(game_state_t *gs);
 The renderer's public surface from \texttt{sw/render.h} (all other
 functions in \texttt{render.c} are \texttt{static}):
 
-\begin{lstlisting}[language=C]
+\begin{lstlisting}[language=pvzC]
 int  render_init (int fpga_fd);  /* stash /dev/pvz fd */
 void render_frame(const game_state_t *gs);  /* one-shot per frame */
 \end{lstlisting}
@@ -1781,7 +1937,7 @@ header (comments trimmed). Non-obvious ports carry a one-line
 annotation.
 
 \textbf{\texttt{pvz\_top}} --- Avalon-MM agent, top of the peripheral tree.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module pvz_top(
     input  logic        clk,
     input  logic        reset,
@@ -1800,7 +1956,7 @@ module pvz_top(
 
 \textbf{\texttt{vga\_counters}} --- 640$\times$480@60\,Hz timing generator
 (extracted from lab3, Stephen A. Edwards).
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module vga_counters(
     input  logic        clk50,         // 50 MHz board clock
     input  logic        reset,
@@ -1814,7 +1970,7 @@ module vga_counters(
 \end{lstlisting}
 
 \textbf{\texttt{linebuffer}} --- dual 640$\times$8-bit banks with hsync swap.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module linebuffer(
     input  logic        clk,
     input  logic        reset,
@@ -1830,7 +1986,7 @@ module linebuffer(
 \end{lstlisting}
 
 \textbf{\texttt{bg\_grid}} --- 4$\times$8 shadow+active grid with coordinate lookup.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module bg_grid(
     input  logic        clk,
     input  logic        reset,
@@ -1848,7 +2004,7 @@ module bg_grid(
 
 \textbf{\texttt{shape\_table}} --- 48-entry shadow+active table,
 write-staging with commit pulse.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module shape_table(
     input  logic        clk,
     input  logic        reset,
@@ -1870,7 +2026,7 @@ module shape_table(
 
 \textbf{\texttt{sprite\_rom}} --- 1\,024$\times$8-bit M10K ROM loaded from
 \texttt{peas\_idx.mem}; 1-cycle registered output.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module sprite_rom(
     input  logic        clk,
     input  logic [9:0]  addr,          // y*32 + x
@@ -1880,7 +2036,7 @@ module sprite_rom(
 
 \textbf{\texttt{shape\_renderer}} --- scanline FSM; ports include a
 ready/valid-style handshake with the sprite ROM.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module shape_renderer(
     input  logic        clk, reset,
     input  logic        render_start,   // pulse at start of each scanline
@@ -1907,7 +2063,7 @@ module shape_renderer(
 \end{lstlisting}
 
 \textbf{\texttt{color\_palette}} --- combinational 8-bit $\to$ 24-bit LUT.
-\begin{lstlisting}[language=Verilog]
+\begin{lstlisting}[language=pvzVerilog]
 module color_palette(
     input  logic [7:0]  index,
     output logic [7:0]  r, g, b        // hardcoded 13 entries; rest black
