@@ -54,3 +54,12 @@ sw/pvz
 sw/test/test_game
 sw/test/test_input
 sw/test/test_shapes
+
+# ---------- LaTeX intermediates ----------
+doc/**/*.aux
+doc/**/*.log
+doc/**/*.out
+doc/**/*.toc
+doc/**/*.fls
+doc/**/*.fdb_latexmk
+doc/**/*.synctex.gz

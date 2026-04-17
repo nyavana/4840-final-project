@@ -74,7 +74,9 @@
     Chenhao Yang & \texttt{cy2822} \\
     Zhenghang Zhao & \texttt{zz3410} &
     Yabkun Li & \texttt{yl6022} \\
-  \end{tabular}
+  \end{tabular}\\[1.0em]
+  {\small Describes the repository as of commit \texttt{a6eb347} on \texttt{origin/main}
+   (merge of branch \texttt{v2Dino}).}
 \end{center}
 
 \tableofcontents
@@ -85,7 +87,7 @@
 \label{sec:intro}
 
 We are building a simplified version of \emph{Plants vs Zombies} on the
-Terasic DE1-SoC board. The game takes place on a $5 \times 9$ grid where
+Terasic DE1-SoC board. The game takes place on a $4 \times 8$ grid where
 the player places defensive plants to stop waves of zombies that walk in
 from the right edge of the screen. Surviving every wave wins the game;
 letting a single zombie reach the left edge loses it.
@@ -119,122 +121,64 @@ FPGA fabric. Communication crosses a single lightweight AXI bridge that
 the Avalon-MM agent sits behind, mapped at physical address
 \texttt{0xFF200000} from the CPU's perspective.
 
+Figure~\ref{fig:system-block} is deliberately coarse: it answers ``what
+talks to what, and how wide is the bus?'' Section~\ref{sec:peripheral-internal}
+opens up the \texttt{pvz\_top} box in a separate diagram; the software
+side is expanded in Figure~\ref{fig:sw-stack}.
+
 \begin{figure}[H]
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   >=Stealth,
-  block/.style={
-    draw, rounded corners=2pt, minimum height=1.1cm,
-    text width=2.4cm, align=center, font=\small\sffamily,
-    fill=blue!8,
-  },
-  hwblock/.style={
-    draw, rounded corners=2pt, minimum height=1.1cm,
-    text width=2.4cm, align=center, font=\small\sffamily,
-    fill=orange!12,
-  },
-  extblock/.style={
-    draw, rounded corners=2pt, minimum height=1.0cm,
-    text width=2.0cm, align=center, font=\small\sffamily,
-    fill=green!10,
-  },
-  bus/.style={->, thick, color=NavyBlue},
-  dbus/.style={<->, thick, color=NavyBlue},
-  note/.style={font=\scriptsize\sffamily, color=gray},
+  hps/.style   ={draw, rounded corners=3pt, minimum height=1.8cm,
+                 minimum width=3.6cm, align=center, font=\small\sffamily,
+                 fill=blue!10},
+  periph/.style={draw, rounded corners=3pt, minimum height=1.8cm,
+                 minimum width=3.6cm, align=center, font=\small\sffamily,
+                 fill=orange!15},
+  ext/.style   ={draw, rounded corners=3pt, minimum height=1.2cm,
+                 minimum width=2.4cm, align=center, font=\small\sffamily,
+                 fill=green!10},
+  bus/.style   ={->, thick},
+  dbus/.style  ={<->, thick},
+  dashbus/.style={->, thick, dashed, color=gray!70},
+  elbl/.style  ={font=\scriptsize\sffamily, fill=white, inner sep=2pt,
+                 align=center, midway, above},
 ]
+  % Row layout: generous horizontal spacing so one-word edge labels fit
+  \node[ext]    (pad)    at (-5.5, 0) {USB\\gamepad};
+  \node[hps]    (hps)    at ( 0,   0) {HPS\\ARM Cortex-A9\\(Linux + C game loop)};
+  \node[periph] (periph) at ( 7.5, 0) {\texttt{pvz\_top}\\Avalon-MM agent\\(FPGA fabric)};
 
-% ── HPS Software ────────────────────────────────────────────────────
-\node[block, text width=2.2cm] (gameloop)
-  {Game Loop\\{\scriptsize(game.c)}};
-\node[block, text width=2.2cm, below=0.5cm of gameloop] (render)
-  {Render\\{\scriptsize(render.c)}};
-\node[block, text width=2.2cm, above=0.5cm of gameloop] (input)
-  {Input\\{\scriptsize(input.c)}};
+  % External outputs far right, stacked vertically away from the main row
+  \node[ext] (vga)   at (13.8, 1.8) {VGA\\monitor};
+  \node[ext] (codec) at (13.8,-1.8) {Wolfson\\WM8731};
 
-% Kernel driver
-\node[block, right=1.8cm of render, fill=blue!16, text width=2.6cm] (driver)
-  {Kernel Driver\\{\scriptsize pvz\_driver.ko}};
+  % ONE short label per arrow; full pin lists live in the caption.
+  \draw[bus]    (pad) -- (hps)         node[elbl] {USB HID};
+  \draw[dbus]   (hps) -- (periph)      node[elbl] {32-bit Avalon-MM};
+  \draw[bus]    (periph.east) -| (vga.south)   node[elbl, pos=0.25] {24-bit RGB + sync};
+  \draw[dashbus](periph.east) -| (codec.north) node[elbl, pos=0.25, below] {I\textsuperscript{2}S + I\textsuperscript{2}C};
 
-% ── Bridge ──────────────────────────────────────────────────────────
-\node[draw, thick, dashed, minimum height=4.6cm, minimum width=0.3cm,
-      right=1.2cm of driver, fill=gray!10, label={[font=\tiny\sffamily]above:LW Bridge}]
-      (bridge) {};
-
-% ── FPGA blocks ─────────────────────────────────────────────────────
-\node[hwblock, right=1.2cm of bridge, text width=2.6cm, fill=orange!20] (pvztop)
-  {pvz\_top\\{\scriptsize Avalon-MM Agent}};
-
-\node[hwblock, above right=0.3cm and 1.6cm of pvztop, text width=2.2cm] (vgacnt)
-  {vga\_counters\\{\scriptsize 640$\times$480}};
-\node[hwblock, right=1.6cm of pvztop, text width=2.2cm] (shapetbl)
-  {shape\_table\\{\scriptsize 48 entries}};
-\node[hwblock, below right=0.3cm and 1.6cm of pvztop, text width=2.2cm] (bggrid)
-  {bg\_grid\\{\scriptsize 5$\times$9 cells}};
-
-\node[hwblock, right=1.6cm of shapetbl, text width=2.6cm] (renderer)
-  {shape\_renderer\\{\scriptsize Scanline FSM}};
-
-\node[hwblock, above=0.5cm of renderer, text width=2.2cm] (spriterom)
-  {sprite\_rom\\{\scriptsize (planned)}};
-
-\node[hwblock, below right=0.0cm and 1.2cm of renderer, text width=2.2cm] (linebuf)
-  {linebuffer\\{\scriptsize 2$\times$640$\times$8}};
-\node[hwblock, right=1.2cm of linebuf, text width=2.2cm] (palette)
-  {color\_palette\\{\scriptsize 256$\to$24-bit}};
-
-\node[hwblock, below=1.4cm of bggrid, text width=2.6cm] (audioctrl)
-  {audio\_controller\\{\scriptsize (planned)}};
-
-% ── External peripherals ────────────────────────────────────────────
-\node[extblock, right=1.2cm of palette] (vga) {VGA\\Monitor};
-\node[extblock, left=1.2cm of input]    (gamepad) {USB\\Gamepad};
-\node[extblock, below=0.5cm of audioctrl] (speaker) {Speaker\\{\scriptsize 3.5\,mm}};
-
-% ── Connections: HPS ────────────────────────────────────────────────
-\draw[bus] (input) -- (gameloop) node[midway,right,note] {events};
-\draw[bus] (gameloop) -- (render) node[midway,right,note] {state};
-\draw[bus] (render) -- (driver) node[midway,above,note] {ioctl};
-\draw[bus] (gameloop.east) -| ([xshift=0.6cm]gameloop.east) |- (driver.north west)
-           node[near start,above,note] {ioctl};
-\draw[bus] (gamepad) -- (input) node[midway,above,note] {USB HID};
-
-% ── Connections: Bridge ─────────────────────────────────────────────
-\draw[dbus] (driver) -- (bridge) node[midway,above,note] {32-bit};
-\draw[dbus] (bridge) -- (pvztop) node[midway,above,note] {Avalon};
-
-% ── Connections: FPGA ───────────────────────────────────────────────
-\draw[bus] (pvztop) -- (shapetbl) node[midway,above,note] {addr/data};
-\draw[bus] (pvztop) |- (bggrid) node[near end,above,note] {cell wr};
-\draw[bus] (pvztop) |- (vgacnt) node[near end,above,note] {clk};
-\draw[bus] (pvztop) |- (audioctrl) node[near end,above,note] {ctrl};
-
-\draw[bus] (shapetbl) -- (renderer) node[midway,above,note] {48-bit};
-\draw[bus] (bggrid) -| (renderer) node[near start,above,note] {8-bit};
-\draw[bus] (vgacnt) -| ([xshift=-0.3cm]renderer.north) node[near start,above,note] {sync};
-\draw[bus, dashed] (spriterom) -- (renderer) node[midway,right,note] {pixel};
-
-\draw[bus] (renderer) |- (linebuf) node[near end,above,note] {wr};
-\draw[bus] (linebuf) -- (palette) node[midway,above,note] {8-bit idx};
-\draw[bus] (palette) -- (vga) node[midway,above,note] {24-bit RGB};
-\draw[bus] (audioctrl) -- (speaker) node[midway,right,note] {I$^2$S};
-
-% ── Region labels ──────────────────────────────────────────────────
-\begin{scope}[on background layer]
-  \node[draw=blue!40, fill=blue!4, dashed, rounded corners=4pt,
-        fit=(input)(gameloop)(render)(driver),
-        inner sep=8pt, label={[font=\small\sffamily\bfseries,blue!60]above:HPS (ARM Cortex-A9 / Linux)}] {};
-  \node[draw=orange!40, fill=orange!3, dashed, rounded corners=4pt,
-        fit=(pvztop)(vgacnt)(shapetbl)(bggrid)(renderer)(linebuf)(palette)(spriterom)(audioctrl),
-        inner sep=8pt, label={[font=\small\sffamily\bfseries,orange!60]above:FPGA Fabric (Cyclone V)}] {};
-\end{scope}
+  % Region legends well clear of the arrows
+  \node[font=\scriptsize\sffamily, color=blue!60]   at (hps.south)    [below=14pt] {(HPS side)};
+  \node[font=\scriptsize\sffamily, color=orange!70] at (periph.south) [below=14pt] {(FPGA side)};
+  \node[font=\scriptsize\sffamily, color=gray!70]   at (codec.south)  [below=6pt]  {\emph{planned}};
 
 \end{tikzpicture}%
 }
-\caption{System block diagram. Solid arrows show data flow; dashed
-  blocks indicate planned modules not yet implemented. The lightweight
-  HPS-to-FPGA bridge carries 32-bit Avalon-MM transactions between the
-  kernel driver and the \texttt{pvz\_top} peripheral.}
+\caption{Top-level system. The HPS hosts the C game loop and its kernel
+  driver; the \texttt{pvz\_top} peripheral lives in the FPGA fabric
+  behind the lightweight HPS-to-FPGA bridge (physical base
+  \texttt{0xFF20\_0000}). On the bridge, the CPU issues byte-aligned
+  \texttt{iowrite32}s while \texttt{pvz\_top} sees the low-order bits
+  as a word-aligned offset. The VGA port carries 3$\times$8-bit R/G/B
+  plus \texttt{HS}, \texttt{VS}, \texttt{BLANK\_n}, \texttt{SYNC\_n}
+  and \texttt{VGA\_CLK}. The dashed path to the Wolfson codec
+  (I\textsuperscript{2}S data + I\textsuperscript{2}C config) is not
+  yet wired through: \texttt{soc\_system\_top.sv} assigns codec pins
+  to safe stubs pending an \texttt{audio\_controller} module.}
 \label{fig:system-block}
 \end{figure}
 
@@ -261,7 +205,7 @@ parameters.
   & Two 640$\times$8-bit banks.\ One is read for display while the other
     accepts writes from the renderer; roles swap every hsync. \\
 \texttt{bg\_grid}        & Grid LUT
-  & Holds a per-cell palette index for the $5 \times 9$ game board.
+  & Holds a per-cell palette index for the $4 \times 8$ game board.
     Shadow/active double-buffered at vsync. \\
 \texttt{shape\_table}    & Entry store
   & 48-entry table, each 48~bits.\ CPU writes go to a shadow copy that
@@ -273,13 +217,141 @@ parameters.
   & 256-entry lookup from 8-bit index to 24-bit RGB.  Purely
     combinational; no BRAM consumed. \\
 \texttt{sprite\_rom}     & Block RAM
-  & \emph{Planned.}\ Bitmap pixel data for plants, zombies, and UI
-    elements. Indexed by sprite ID and sub-pixel offset. \\
-\texttt{audio\_controller} & I$^2$S / I$^2$C
-  & \emph{Planned.}\ Configures the WM8731 codec over I$^2$C and streams
-    PCM samples from an on-chip wave ROM. \\
+  & 1\,024$\times$8-bit M10K block initialised from \texttt{peas\_idx.mem}.
+    Currently stores one 32$\times$32 peashooter sprite; read at 1-cycle
+    latency, \texttt{0xFF} means transparent. \\
 \bottomrule
 \end{tabularx}
+\end{table}
+
+\subsection{Peripheral Internal Structure}
+\label{sec:peripheral-internal}
+
+Figure~\ref{fig:peripheral-internal} expands the \texttt{pvz\_top} box
+from Figure~\ref{fig:system-block}. The register decode on the west
+side accepts Avalon writes and routes them to the appropriate storage
+block. The renderer sits in the middle, pulling from the three
+memories (shape table, background grid, sprite ROM) and writing pixels
+into whichever line buffer is currently the ``draw'' buffer. The east
+side drives VGA pins through the palette LUT. Every labelled bit-width
+is the actual Verilog signal width, not a conceptual one.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  >=Stealth,
+  mem/.style={draw, rounded corners=2pt, minimum height=1.4cm,
+              minimum width=3.2cm, align=center, font=\small\sffamily,
+              fill=purple!10},
+  logic/.style={draw, rounded corners=2pt, minimum height=1.4cm,
+                minimum width=3.2cm, align=center, font=\small\sffamily,
+                fill=orange!15},
+  io/.style={draw, rounded corners=2pt, minimum height=1.2cm,
+             minimum width=2.4cm, align=center, font=\small\sffamily,
+             fill=blue!10},
+  bus/.style={->, thick},
+  cidx/.style={circle, draw, thick, fill=white, inner sep=0pt,
+               minimum size=13pt,
+               font=\scriptsize\sffamily\bfseries, midway},
+]
+  % vga_counters spans the top — one timing source for everyone
+  \node[logic] (vc)    at ( 8.0, 5.6) {\texttt{vga\_counters}\\\texttt{hcount}[10:0], \texttt{vcount}[9:0]};
+
+  % Memories, stacked vertically on the left
+  \node[mem]   (st)    at ( 0.0, 3.2) {\texttt{shape\_table}\\48\,$\times$\,48-bit\\shadow+active = 4\,608\,bit};
+  \node[mem]   (bg)    at ( 0.0, 0.8) {\texttt{bg\_grid}\\4\,$\times$\,8\,$\times$\,8-bit\\shadow+active = 512\,bit};
+  \node[mem]   (sr)    at ( 0.0,-1.6) {\texttt{sprite\_rom}\\1\,024\,$\times$\,8-bit = 8\,192\,bit\\(M10K, 1-cyc latency)};
+
+  % Renderer central
+  \node[logic] (rend)  at ( 6.0, 0.8) {\texttt{shape\_renderer}\\scanline FSM, 6 states};
+
+  % Line buffer + palette on the right
+  \node[mem]   (lb)    at (11.5, 2.0) {\texttt{linebuffer}\\2\,$\times$\,640\,$\times$\,8-bit = 10\,240\,bit\\(hsync swap)};
+  \node[logic] (pal)   at (11.5,-0.8) {\texttt{color\_palette}\\256\,$\to$\,24-bit LUT\\(combinational)};
+
+  % Avalon decode on the far left edge
+  \node[io]    (av)    at (-4.8, 0.8) {Avalon-MM\\decode};
+
+  % VGA pins on the far right
+  \node[io]    (vga)   at (15.5, 0.8) {VGA pins};
+
+  % Each arrow carries a small circled index; signal details live in
+  % the key table below (Table~\ref{tab:fig-pi-key}).
+  \draw[bus] (av.east) -- (st.west |- av) -- (st.west) node[cidx] {1};
+  \draw[bus] (av.east) -- (bg.west)                    node[cidx] {2};
+  \draw[bus] (st.east) -- (rend.north west)            node[cidx] {3};
+  \draw[bus] (bg.east) -- (rend.west)                  node[cidx] {4};
+  \draw[bus] (sr.east) -- (rend.south west)            node[cidx] {5};
+  \draw[bus] (rend.north east) -- (lb.west)            node[cidx] {6};
+  \draw[bus] (vc.west) -| (rend.north)                 node[cidx, pos=0.7] {7};
+  \draw[bus] (vc.east) -| (lb.north)                   node[cidx, pos=0.6] {8};
+  \draw[bus] (lb.south) -- (pal.north)                 node[cidx] {9};
+  \draw[bus] (pal.east) -- (vga.west |- pal) -- (vga.south) node[cidx, pos=0.3] {10};
+  \draw[bus] (vc.east) -| (vga.north)                  node[cidx, pos=0.7] {11};
+
+  % Region box
+  \begin{scope}[on background layer]
+    \node[draw=orange!50, dashed, rounded corners=4pt,
+          fit=(av)(st)(bg)(sr)(vc)(rend)(lb)(pal)(vga),
+          inner sep=12pt,
+          label={[font=\small\sffamily\bfseries, orange!70]above:%
+                 \texttt{pvz\_top} (inside the FPGA fabric)}] {};
+  \end{scope}
+\end{tikzpicture}%
+}
+\caption{Inside \texttt{pvz\_top}. Memories are shaded purple, combinational
+  logic and FSMs orange, Avalon-facing I/O blue. Each arrow is
+  numbered; Table~\ref{tab:fig-pi-key} names the signals and widths.
+  The sprite ROM carries a 1-cycle read latency, so
+  \texttt{shape\_renderer} issues the address on arrow~5 one cycle
+  before it expects the pixel, keeping a 1-entry pending buffer to
+  commit each returned byte (and suppressing the write when the byte
+  equals the transparent sentinel \texttt{0xFF}).}
+\label{fig:peripheral-internal}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Signal key for Figure~\ref{fig:peripheral-internal}.}
+\label{tab:fig-pi-key}
+\begin{tabular}{c l l p{6.3cm}}
+\toprule
+\textbf{\#} & \textbf{From} & \textbf{To} & \textbf{Signals (width)}\\
+\midrule
+1 & Avalon decode & \texttt{shape\_table}
+  & \texttt{addr\_wr}, \texttt{data0/1\_wr}, \texttt{commit\_wr};
+    staged 32-bit \texttt{writedata}\\
+2 & Avalon decode & \texttt{bg\_grid}
+  & \texttt{wr\_en}, \texttt{wr\_row}[1:0], \texttt{wr\_col}[2:0],
+    \texttt{wr\_color}[7:0]\\
+3 & \texttt{shape\_table} & \texttt{shape\_renderer}
+  & 48-bit entry unpacked to \texttt{rd\_type}[1:0],
+    \texttt{rd\_visible}, \texttt{rd\_x}[9:0], \texttt{rd\_y/w/h}[8:0],
+    \texttt{rd\_color}[7:0]\\
+4 & \texttt{bg\_grid} & \texttt{shape\_renderer}
+  & \texttt{color\_out}[7:0] from (\texttt{bg\_px}, \texttt{bg\_py})
+    lookup\\
+5 & \texttt{sprite\_rom} & \texttt{shape\_renderer}
+  & \texttt{sprite\_rd\_addr}[9:0] $\to$
+    \texttt{sprite\_rd\_pixel}[7:0] (1-cycle latency)\\
+6 & \texttt{shape\_renderer} & \texttt{linebuffer}
+  & \texttt{lb\_wr\_en}, \texttt{lb\_wr\_addr}[9:0],
+    \texttt{lb\_wr\_data}[7:0]\\
+7 & \texttt{vga\_counters} & \texttt{shape\_renderer}
+  & scanline (\texttt{vcount}[9:0]), \texttt{render\_start} pulse\\
+8 & \texttt{vga\_counters} & \texttt{linebuffer}
+  & \texttt{rd\_addr}[9:0] (pixel x), \texttt{swap} (hsync pulse)\\
+9 & \texttt{linebuffer} & \texttt{color\_palette}
+  & \texttt{rd\_data}[7:0] palette index\\
+10 & \texttt{color\_palette} & VGA pins
+  & \texttt{R}[7:0], \texttt{G}[7:0], \texttt{B}[7:0]\\
+11 & \texttt{vga\_counters} & VGA pins
+  & \texttt{VGA\_HS}, \texttt{VGA\_VS}, \texttt{VGA\_BLANK\_n},
+    \texttt{VGA\_SYNC\_n}, \texttt{VGA\_CLK}\\
+\bottomrule
+\end{tabular}
 \end{table}
 
 % ════════════════════════════════════════════════════════════════════════
@@ -313,7 +385,7 @@ function main_loop():
         // 2. Update game state
         update_sun()                  // +25 sun every 10 s
         update_spawning()             // wave-table-driven zombie spawns
-        update_plant_firing()         // peashooters fire every 1.5 s
+        update_plant_firing()         // peashooters fire every 2 s (PLANT_FIRE_COOLDOWN)
         update_projectiles()          // peas move right at 2 px/frame
         update_zombies()              // zombies move left; eat plants
         check_collisions()            // pea-zombie, zombie-plant
@@ -333,6 +405,45 @@ function main_loop():
     end
 \end{lstlisting}
 \end{figure}
+
+\subsubsection{State-Aware Rendering and Shape-Index Allocation}
+\label{sec:algo-state-render}
+
+\texttt{render\_frame} in \texttt{sw/render.c} is the sole writer of
+shape-table entries. It always refreshes the background grid first.
+When \texttt{gs->state == STATE\_PLAYING} it then emits the plants,
+zombies, projectiles, cursor, and HUD; when the game is in
+\texttt{STATE\_WIN} or \texttt{STATE\_LOSE} it instead hides every
+entity slot (writing \texttt{visible = 0}) and draws a single coloured
+rectangle as a win/lose banner. The renderer still walks all 48 slots
+every scanline --- visibility is gated in software, not hardware.
+
+The shape index determines z-order, since the renderer applies a
+painter's-algorithm pass in index order and later writes overwrite
+earlier ones. Software therefore allocates indices by stacking layer:
+
+\begin{table}[H]
+\centering
+\caption{Shape-table index allocation (from \texttt{sw/render.c}).}
+\label{tab:shape-idx}
+\begin{tabular}{c l l}
+\toprule
+\textbf{Indices} & \textbf{Slot} & \textbf{Role} \\
+\midrule
+\texttt{0--31}   & Plants      & One slot per grid cell (4 rows $\times$ 8 cols). \\
+\texttt{32--36}  & Zombies     & \texttt{MAX\_ZOMBIES} = 5 active at once. \\
+\texttt{37--42}  & Projectiles & Up to 6 visible peas; extras are dropped this frame. \\
+\texttt{43--46}  & HUD digits  & Up to 4 7-segment digits for the sun counter. \\
+\texttt{47}      & Cursor      & Yellow cell highlight; drawn last so it never hides behind a plant. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The layout is the fix landed in commit \texttt{dc297d4}: an earlier
+version placed the cursor at a low index and discovered that plants
+drew on top of it. Pushing the cursor to slot 47 makes the top-of-stack
+guarantee explicit, and symmetrically ensures HUD digits always render
+above the game entities.
 
 \subsubsection{Collision Detection}
 
@@ -471,9 +582,85 @@ govern the pipeline:
   \node[left, label, ForestGreen] at (0,-2.95) {\texttt{display}};
 
 \end{tikzpicture}
-\caption{Per-scanline timing. The renderer has roughly 1\,598 clock
-  cycles to fill the draw buffer before the next swap.}
+\caption{Per-scanline timing. \texttt{lb\_swap} pulses at
+  \texttt{hcount}\,=\,0; \texttt{render\_start} pulses at
+  \texttt{hcount}\,=\,2. The renderer has roughly 1\,598 pixel-clock
+  cycles to fill the draw buffer before the next swap. The
+  corresponding data paths are shown in
+  Figure~\ref{fig:scanline-dataflow}.}
 \label{fig:scanline-timing}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  >=Stealth,
+  blk/.style={draw, rounded corners=2pt, minimum height=1.0cm,
+              minimum width=2.6cm, align=center, font=\small\sffamily},
+  mem/.style={blk, fill=purple!10},
+  logic/.style={blk, fill=orange!15},
+  ext/.style={blk, fill=green!10},
+  writebus/.style={->, thick, color=BlueViolet},
+  readbus/.style={->, thick, color=ForestGreen},
+  swap/.style={<->, thick, dashed, color=red},
+  % No fill on short labels — they sit in empty space between nodes and
+  % don't need to mask the arrow. `pos=0.45` keeps them away from the
+  % destination box's edge.
+  lbl/.style={font=\scriptsize\sffamily, align=center, pos=0.45, above=2pt},
+]
+  % Sources: wider vertical spacing
+  \node[mem]   (st)  at (0, 1.8)  {\texttt{shape\_table}};
+  \node[mem]   (bg)  at (0, 0.0)  {\texttt{bg\_grid}};
+  \node[mem]   (sr)  at (0,-1.8)  {\texttt{sprite\_rom}};
+
+  % Renderer (pushed right to give converging-edge labels horizontal room)
+  \node[logic] (r)   at (5.0, 0.0) {\texttt{shape\_renderer}};
+
+  % Line buffers pushed further right so the write arrow is long
+  \node[mem]   (lbB) at (10.5, 1.2) {Line-buf B\\(draw)};
+  \node[mem]   (lbA) at (10.5,-1.2) {Line-buf A\\(display)};
+
+  % Palette + VGA further right so the read-path labels have room
+  \node[logic] (pal) at (14.5,-1.2) {\texttt{color\_palette}};
+  \node[ext]   (vga) at (18.0,-1.2) {VGA pins};
+
+  % Write path: short one-word tags only, placed early (pos=0.45) so
+  % their bounding box never reaches the target node.
+  \draw[writebus] (st.east) -- (r.north west) node[lbl] {entry};
+  \draw[writebus] (bg.east) -- (r.west)       node[lbl] {color};
+  \draw[writebus] (sr.east) -- (r.south west) node[lbl] {pixel};
+  \draw[writebus] (r.east)  -- (lbB.west)     node[lbl] {write};
+
+  % Read path
+  \draw[readbus]  (lbA.east) -- (pal.west)  node[lbl] {idx};
+  \draw[readbus]  (pal.east) -- (vga.west)  node[lbl] {R/G/B};
+
+  % Swap pulse — vertical arrow between the two line buffers; short label
+  % placed outside the arrow (to the right) with no fill.
+  \draw[swap] (lbB.south) -- (lbA.north)
+    node[font=\scriptsize\sffamily, align=center, midway, right=4pt] {swap\\(hsync)};
+
+  % Legend placed in empty upper-right corner, far from any node
+  \node[font=\scriptsize\sffamily, align=left, fill=gray!5, draw=gray!30,
+        rounded corners=2pt, inner sep=4pt]
+       at (14.5, 2.0)
+       {\textcolor{BlueViolet}{$\rightarrow$} renderer writing\\[1pt]
+        \textcolor{ForestGreen}{$\rightarrow$} DAC reading\\[1pt]
+        \textcolor{red}{$\leftrightarrow$} hsync swap};
+\end{tikzpicture}%
+}
+\caption{Scanline dataflow. During scanline $N$, the DAC drains line
+  buffer A (green path, reading 8-bit palette indices that
+  \texttt{color\_palette} expands to 24-bit R/G/B) while the renderer
+  fills line buffer B from \texttt{shape\_table} (48-bit entry),
+  \texttt{bg\_grid} (8-bit colour), and \texttt{sprite\_rom} (8-bit
+  pixel), issuing \texttt{wr\_en}/\texttt{wr\_addr[9:0]}/\texttt{wr\_data[7:0]}
+  on the violet write port. At \texttt{hcount}\,=\,0 the
+  \texttt{lb\_swap} pulse toggles the \texttt{sel} flip-flop in
+  \texttt{linebuffer.sv}, so on line $N{+}1$ the roles reverse and no
+  pixel ever needs to cross buffers.}
+\label{fig:scanline-dataflow}
 \end{figure}
 
 \subsubsection{Renderer FSM}
@@ -484,33 +671,51 @@ The \texttt{shape\_renderer} walks through six states each scanline:
   \item \textbf{S\_IDLE} --- Waits for \texttt{render\_start}.
   \item \textbf{S\_BG\_FILL} --- Writes 640 pixels of background color
     from \texttt{bg\_grid} (one clock per pixel).
-  \item \textbf{S\_SHAPE\_SETUP} --- Indexes the shape table, latches
-    geometry into local registers.
-  \item \textbf{S\_SHAPE\_CHECK} --- Tests whether the shape's vertical
-    extent intersects the current scanline. If not, skips to the next
-    shape.
-  \item \textbf{S\_SHAPE\_DRAW} --- Iterates pixel-by-pixel across the
-    shape's horizontal span, performing a type-dependent hit test
-    (rectangle, circle, or 7-segment digit) and writing hits into the
-    line buffer. Later shapes overwrite earlier ones, implementing
-    painter's-algorithm z-ordering.
+  \item \textbf{S\_SHAPE\_SETUP} --- Drives \texttt{shape\_index} into
+    the table's read port; one clock later the decoded geometry
+    (\texttt{type}, \texttt{visible}, \texttt{x}, \texttt{y},
+    \texttt{w}, \texttt{h}, \texttt{color}) is latched into local
+    registers.
+  \item \textbf{S\_SHAPE\_CHECK} --- Tests visibility and whether the
+    shape's vertical extent intersects the current scanline. If not,
+    advances \texttt{cur\_shape} and loops back to \textsc{S\_SHAPE\_SETUP}.
+  \item \textbf{S\_SHAPE\_DRAW} --- Walks \texttt{draw\_x} across the
+    shape's horizontal span. Behaviour branches on \texttt{type}:
+    \begin{itemize}[nosep]
+      \item \textbf{Types 0/1/2} (rectangle, circle, 7-seg digit):
+        compute the hit predicate and, when it holds, write
+        \texttt{s\_color} into the line buffer at column
+        \texttt{draw\_x}.
+      \item \textbf{Type 3} (sprite): issue a sprite-ROM read at the
+        downscaled address
+        \texttt{\{sprite\_local\_y[5:1], sprite\_local\_x[5:1]\}},
+        set the \texttt{sprite\_pending} flag, and on the following
+        clock commit the returned pixel into the line buffer
+        \emph{unless} it equals \texttt{0xFF} (transparent).
+    \end{itemize}
+    Later shapes overwrite earlier ones, giving painter's-algorithm
+    z-ordering by table index.
   \item \textbf{S\_DONE} --- Signals completion; idles until the next
     \texttt{render\_start}.
 \end{enumerate}
 
-Steps 3--5 repeat for all 48 shape entries.
+States 3--5 repeat for all 48 shape entries, regardless of visibility.
+The sprite branch absorbs the ROM's 1-cycle read latency with a
+single-entry pending-pixel register, and spends one additional clock
+after \texttt{draw\_x} passes \texttt{s\_x + s\_w} to flush the final
+fetch before advancing.
 
 % ────────────────────────────────────────────────────────────────────────
 \subsection{Shape Types}
 \label{sec:algo-shapes}
 
-The renderer supports three shape primitives, selected by a 2-bit type
+The renderer supports four shape primitives, selected by a 2-bit type
 field:
 
 \begin{description}[nosep, leftmargin=1.5cm, style=nextline]
   \item[Type 0 --- Filled Rectangle]
-    Every pixel within the bounding box is a hit. This is the
-    default for plants, zombies, grid cursor, and HUD backgrounds.
+    Every pixel within the bounding box is a hit. Used for zombies,
+    the cursor highlight, HUD backgrounds, and the win/lose banner.
 
   \item[Type 1 --- Filled Circle]
     The hit test computes the squared distance from the pixel to the
@@ -528,25 +733,67 @@ field:
     mask, and the hit test checks whether the local $(x, y)$ coordinate
     falls inside any active segment. This is used for the sun counter
     display.
+
+  \item[Type 3 --- Sprite]
+    Reads pixel data from \texttt{sprite\_rom.sv} instead of computing
+    a geometric hit test. Currently one 32$\times$32 sprite (the
+    peashooter) lives in ROM and is up-scaled 2$\times$ to 64$\times$64
+    on screen. The renderer suppresses the line-buffer write whenever
+    the sampled byte equals \texttt{0xFF}, so irregular sprite
+    silhouettes compose cleanly over the background. See
+    \S\ref{sec:algo-sprites} for the read-latency pipeline and
+    \S\ref{sec:shape-entry} for how \texttt{w}/\texttt{h} are
+    interpreted when \texttt{type = 3}.
 \end{description}
 
 % ────────────────────────────────────────────────────────────────────────
-\subsection{Sprite System (Planned)}
+\subsection{Sprite System}
 \label{sec:algo-sprites}
 
-The shape-based renderer described above serves the MVP. For the final
-version we plan to add bitmap sprite support. Each sprite table entry
-will gain a \texttt{sprite\_id} field that indexes into a block-RAM
-sprite ROM. During the draw phase, instead of performing a geometric hit
-test, the renderer will read pixel data from the ROM at the
-corresponding $(x, y)$ offset. Palette index~0 means transparent, so
-sprites with irregular outlines layer over the background without
-rectangular halos.
+Bitmap sprites are now rendered alongside the shape primitives. The
+V2Dino milestone added \texttt{sprite\_rom.sv}, a 1\,024-byte M10K ROM
+holding a single 32$\times$32 peashooter sprite, plus a type-3 branch in
+\texttt{shape\_renderer.sv} that renders the ROM contents on screen.
+Software selects the sprite path by writing \texttt{type = 3}
+(\texttt{SHAPE\_SPRITE}) in the shape-table entry; \texttt{w} and
+\texttt{h} still encode the on-screen footprint.
 
-Sprite sheets will be organized by entity type. Each sheet packs
-multiple animation frames for one character (e.g., four walking frames
-and two attack frames for the Peashooter). The sprite table entry's
-\texttt{frame} field will select which animation frame to display.
+\textbf{ROM layout.}\ Pixels are stored row-major as 1\,024 bytes
+(32 rows $\times$ 32 columns, 1 byte per pixel). Each byte is either a
+palette index that matches \texttt{color\_palette.sv} ($0$--$12$ today)
+or the sentinel value \texttt{0xFF}, which the renderer treats as
+transparent. Quartus initialises the ROM at power-up from
+\texttt{peas\_idx.mem} via \texttt{\$readmemh}, which is listed as a
+\texttt{QUARTUS\_SYNTH} file in \texttt{pvz\_top\_hw.tcl}.
+
+\textbf{2$\times$ up-scaling.}\ The renderer addresses the ROM with
+\texttt{\{sprite\_local\_y[5:1], sprite\_local\_x[5:1]\}}, i.e.~the
+local $(x, y)$ within the on-screen footprint shifted right by one.
+Every 2$\times$2 pixel block on screen reads the same source pixel, so
+a 32$\times$32 sprite renders as 64$\times$64 without any interpolation.
+Software currently emits peashooters with \texttt{w = h = 64} so the
+on-screen footprint exactly matches the scaled sprite.
+
+\textbf{Read-latency pipeline.}\ The ROM is an inferred M10K block
+with a 1-clock registered output, so the pixel for address $A$ appears
+on the data port in the \emph{next} cycle. The renderer's sprite
+branch carries a 1-entry pending queue
+(\texttt{sprite\_pending}, \texttt{sprite\_pending\_addr}): each clock
+it issues the fetch for column \texttt{draw\_x}, increments
+\texttt{draw\_x}, and (one cycle later) commits the returned byte to
+the line buffer at \texttt{sprite\_pending\_addr}. When the sampled
+byte is \texttt{0xFF} the write is suppressed, so the background shows
+through transparent regions. After \texttt{draw\_x} passes
+\texttt{s\_x + s\_w} the FSM spends one extra cycle draining the final
+fetch before advancing to the next shape.
+
+\textbf{Limits of the current implementation.}\ Only a single sprite
+lives in ROM, so the shape-table entry's \texttt{color} field is
+ignored for type~3 (there is no sprite-ID field yet). A larger ROM,
+multi-frame animation, and per-entry sprite IDs are future work
+tracked under the proposal's non-MVP features; the register map and
+shape-table layout leave room to add these without breaking the
+current binding.
 
 % ────────────────────────────────────────────────────────────────────────
 \subsection{Audio Playback (Planned)}
@@ -584,7 +831,7 @@ properties.
 \toprule
 \textbf{Plant} & \textbf{Sun Cost} & \textbf{HP (relative)} & \textbf{Behavior} \\
 \midrule
-Peashooter & 100 & $1\times$  & Fires a pea down its row every 1.5\,s \\
+Peashooter & 50 & 3 HP & Fires a pea down its row every 2\,s \\
 Sunflower  &  50 & $1\times$  & Produces 25 sun every 10\,s \\
 Wall-nut   &  50 & $4\times$  & Absorbs damage; no attack \\
 \bottomrule
@@ -691,29 +938,35 @@ Victory           &  3.0 & 8 &  24{,}000 &   384{,}000 \\
 
 \begin{table}[H]
 \centering
-\caption{Total on-chip memory usage estimate.}
+\small
+\caption{Total on-chip memory usage estimate. ``Actual'' is what
+  commit \texttt{a6eb347} synthesises; ``Projected'' adds the not-yet-shipped
+  sprites and audio path (Tables~\ref{tab:gfx-mem},
+  \ref{tab:audio-mem}).}
 \label{tab:sram}
-\begin{tabular}{l r l}
+\begin{tabular}{l r r p{4.5cm}}
 \toprule
-\textbf{Component} & \textbf{Bits} & \textbf{Notes} \\
+\textbf{Component} & \textbf{Actual (b)} & \textbf{Projected (b)} & \textbf{Notes} \\
 \midrule
-Line buffers (2$\times$640$\times$8)   &    10{,}240 & Dual scanline buffers \\
-Shape table (48 entries $\times$ 48)    &     2{,}304 & Shadow + active $= 4{,}608$ \\
-Background grid (5$\times$9$\times$8)  &       360   & Shadow + active $= 720$ \\
-Color palette (256$\times$24)           &     6{,}144 & Combinational LUT (no BRAM) \\
-Sprite ROMs                             &   719{,}232 & See Table~\ref{tab:gfx-mem} \\
-Audio wave ROM                          & 2{,}828{,}800 & See Table~\ref{tab:audio-mem} \\
+Line buffers (2$\times$640$\times$8)    & 10{,}240 & 10{,}240 & Dual scanline buffers \\
+Shape table (48 entries $\times$ 48)     &  4{,}608 &  4{,}608 & Shadow + active \\
+Background grid (4$\times$8$\times$8)    &     512 &     512 & Shadow + active \\
+Color palette (256$\times$24)            &  6{,}144 &  6{,}144 & Combinational LUT (no BRAM) \\
+Sprite ROMs                              &  8{,}192 & 719{,}232 & One 32$\times$32 sprite today \\
+Audio wave ROM                           &       0 & 2{,}828{,}800 & Not yet implemented \\
 \midrule
-\textbf{Total}                          & \textbf{3{,}567{,}304} & \\
-\textbf{Available (M10K)}              & \textbf{4{,}450{,}000} & \\
-\textbf{Utilization}                    & \textbf{80.2\%} & \\
+\textbf{Total}                           &  \textbf{29{,}696} & \textbf{3{,}569{,}536} & \\
+\textbf{Available (M10K)}                & \multicolumn{2}{r}{\textbf{4{,}450{,}000}} & \\
+\textbf{Utilization}                     & \textbf{0.67\%} & \textbf{80.2\%} & \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-We have roughly 880\,Kbits of headroom. If audio memory proves too
-tight we can reduce the background music loop duration or drop the
-sample rate to 4\,kHz, which would halve the audio footprint.
+The current image is far under budget; roughly 880\,Kbits of headroom
+remain even after all planned sprites and the audio wave ROM are added.
+If audio memory proves too tight we can reduce the background music
+loop duration or drop the sample rate to 4\,kHz, which would halve the
+audio footprint.
 
 \subsection{Logic Utilization}
 
@@ -756,47 +1009,193 @@ frame.
 
 \subsection{Register Map}
 
-Table~\ref{tab:regmap} specifies every register. All registers are
-\textbf{write-only} from the CPU side.
+\texttt{pvz\_top} exposes five 32-bit words at byte offsets
+\texttt{0x00}--\texttt{0x10} from the peripheral's base address
+(\texttt{0xFF20\_0000} on the board). All five are write-only from the
+CPU side: the Avalon slave declared in \texttt{pvz\_top\_hw.tcl} and
+instantiated in \texttt{pvz\_top.sv} has no \texttt{readdata} port, so
+a read transaction takes the bus default (the fabric returns \texttt{0}).
+
+Table~\ref{tab:regmap} summarises what each address does; the
+per-register subsections below break out the exact field layout and
+when each field becomes visible to the renderer.
 
 \begin{table}[H]
 \centering
-\caption{Avalon-MM register map (32-bit words, byte offsets).}
+\caption{Avalon-MM register map (byte offsets from base). ``Latency''
+  is the delay between a successful CPU write and the change taking
+  effect for the display.}
 \label{tab:regmap}
 \small
-\begin{tabular}{c l c l l}
+\begin{tabular}{c l c >{\raggedright\arraybackslash}p{4.8cm} >{\raggedright\arraybackslash}p{3.0cm} l}
 \toprule
-\textbf{Offset} & \textbf{Name} & \textbf{Bits} & \textbf{Field} & \textbf{Description} \\
+\textbf{Offset} & \textbf{Name} & \textbf{R/W}
+  & \textbf{Write causes} & \textbf{Read returns} & \textbf{Latency}\\
 \midrule
-\multirow{3}{*}{\texttt{0x00}}
-  & \multirow{3}{*}{BG\_CELL}
-  & $[2{:}0]$   & \texttt{col}   & Grid column (0--8) \\
-  & & $[4{:}3]$   & \texttt{row}   & Grid row (0--4) \\
-  & & $[15{:}8]$  & \texttt{color} & Palette index for this cell \\
-\midrule
-\texttt{0x04}
-  & SHAPE\_ADDR
-  & $[5{:}0]$   & \texttt{index} & Shape entry to modify (0--47) \\
-\midrule
-\multirow{4}{*}{\texttt{0x08}}
-  & \multirow{4}{*}{SHAPE\_DATA0}
-  & $[1{:}0]$   & \texttt{type}    & 0\,=\,rect, 1\,=\,circle, 2\,=\,7-seg \\
-  & & $[2]$       & \texttt{visible} & 1\,=\,draw, 0\,=\,skip \\
-  & & $[12{:}3]$  & \texttt{x}       & X position in pixels (0--639) \\
-  & & $[21{:}13]$ & \texttt{y}       & Y position in pixels (0--479) \\
-\midrule
-\multirow{3}{*}{\texttt{0x0C}}
-  & \multirow{3}{*}{SHAPE\_DATA1}
-  & $[8{:}0]$   & \texttt{w}     & Width in pixels; or digit value $[3{:}0]$ for type\,2 \\
-  & & $[17{:}9]$  & \texttt{h}     & Height in pixels \\
-  & & $[25{:}18]$ & \texttt{color} & Palette index for shape fill \\
-\midrule
-\texttt{0x10}
-  & SHAPE\_COMMIT
-  & $[0]$       & \texttt{commit}& Write 1 to commit entry to shadow table \\
+\texttt{0x00} & \texttt{BG\_CELL}
+  & W
+  & Writes \texttt{color} into the shadow \texttt{bg\_grid} at
+    $(\mathtt{row},\mathtt{col})$.
+  & \texttt{0} (no readback).
+  & Next vsync\\
+\texttt{0x04} & \texttt{SHAPE\_ADDR}
+  & W
+  & Latches the shape-table staging index \texttt{cur\_addr}
+    $\leftarrow$ \texttt{writedata[5:0]}.
+  & \texttt{0} (no readback).
+  & See below\\
+\texttt{0x08} & \texttt{SHAPE\_DATA0}
+  & W
+  & Latches \texttt{staged\_data0} $\leftarrow$ \texttt{writedata}
+    (type, visible, x, y).
+  & \texttt{0} (no readback).
+  & At commit\\
+\texttt{0x0C} & \texttt{SHAPE\_DATA1}
+  & W
+  & Latches \texttt{staged\_data1} $\leftarrow$ \texttt{writedata}
+    (w, h, color).
+  & \texttt{0} (no readback).
+  & At commit\\
+\texttt{0x10} & \texttt{SHAPE\_COMMIT}
+  & W
+  & If \texttt{writedata != 0}, packs
+    \texttt{\{staged\_data1, staged\_data0\}} into
+    \texttt{shadow[cur\_addr]}.
+  & \texttt{0} (no readback).
+  & Next vsync\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsubsection{\texttt{BG\_CELL} --- Background grid cell (offset \texttt{0x00})}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{c l p{9cm}}
+\toprule
+\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\midrule
+\texttt{[2:0]}  & \texttt{col}   & Grid column (0--7).\\
+\texttt{[4:3]}  & \texttt{row}   & Grid row (0--3).\\
+\texttt{[15:8]} & \texttt{color} & Palette index written into the cell.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Write causes.} One entry of the shadow \texttt{bg\_grid} is
+updated on the next clock: \texttt{shadow[row][col] <= color}.
+
+\textbf{Read returns.} The peripheral does not drive a \texttt{readdata}
+line, so reads return the fabric default (\texttt{0}).
+
+\textbf{Latching.} The written cell is invisible until the next
+\texttt{vsync\_latch} pulse (at \texttt{vcount}\,=\,480,
+\texttt{hcount}\,=\,0), at which point all 32 cells snap from shadow to
+active simultaneously.
+
+\subsubsection{\texttt{SHAPE\_ADDR} --- Shape-table staging address (offset \texttt{0x04})}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{c l p{9cm}}
+\toprule
+\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\midrule
+\texttt{[5:0]} & \texttt{index} & Shape slot selected for the next
+                                  \texttt{SHAPE\_COMMIT} (0--47).\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Write causes.} The internal \texttt{cur\_addr} register captures
+\texttt{writedata[5:0]} on the next clock.
+
+\textbf{Read returns.} \texttt{0}.
+
+\textbf{Latching.} No display-visible effect by itself.
+\texttt{cur\_addr} is used only to pick which shadow slot
+\texttt{SHAPE\_COMMIT} writes into.
+
+\subsubsection{\texttt{SHAPE\_DATA0} --- Shape fields: type/visible/x/y (offset \texttt{0x08})}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{c l p{8.3cm}}
+\toprule
+\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\midrule
+\texttt{[1:0]}   & \texttt{type}    & 0=rect, 1=circle, 2=7-seg digit, 3=sprite.\\
+\texttt{[2]}     & \texttt{visible} & 1 = draw, 0 = skipped in \textsc{S\_SHAPE\_CHECK}.\\
+\texttt{[12:3]}  & \texttt{x}       & Pixel x (0--1023, but only 0--639 is on-screen).\\
+\texttt{[21:13]} & \texttt{y}       & Pixel y (0--511, on-screen 0--479).\\
+\texttt{[31:22]} & ---              & Ignored (wired to 0 by the driver).\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Write causes.} \texttt{staged\_data0} captures \texttt{writedata}
+on the next clock. Nothing else changes yet.
+
+\textbf{Read returns.} \texttt{0}.
+
+\textbf{Latching.} The staged word does not affect rendering until
+\texttt{SHAPE\_COMMIT} packs it into \texttt{shadow[cur\_addr]}, and
+\texttt{shadow} does not move into \texttt{active} until
+\texttt{vsync\_latch}. Net effect: at most one frame of latency.
+
+\subsubsection{\texttt{SHAPE\_DATA1} --- Shape fields: w/h/color (offset \texttt{0x0C})}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{c l p{8.3cm}}
+\toprule
+\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\midrule
+\texttt{[8:0]}   & \texttt{w}     & Width; for \texttt{type = 2}, \texttt{w[3:0]}
+                                    encodes the digit value (see \S\ref{sec:shape-entry}).\\
+\texttt{[17:9]}  & \texttt{h}     & Height in pixels.\\
+\texttt{[25:18]} & \texttt{color} & Palette index (ignored for \texttt{type = 3}).\\
+\texttt{[31:26]} & ---            & Ignored.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Write causes.} \texttt{staged\_data1} captures \texttt{writedata}
+on the next clock.
+
+\textbf{Read returns.} \texttt{0}.
+
+\textbf{Latching.} Same two-stage latency as \texttt{SHAPE\_DATA0}.
+
+\subsubsection{\texttt{SHAPE\_COMMIT} --- Commit staged shape (offset \texttt{0x10})}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{c l p{9cm}}
+\toprule
+\textbf{Bits} & \textbf{Field} & \textbf{Meaning}\\
+\midrule
+\texttt{[31:0]} & \texttt{commit} & Any nonzero word triggers commit; zero is a no-op.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Write causes.} When \texttt{writedata != 0}, the hardware packs
+the staging registers into \texttt{shadow[cur\_addr]} on the next
+clock, using this field order:
+
+\begin{lstlisting}[language=Verilog, numbers=none, basicstyle=\ttfamily\footnotesize]
+shadow[cur_addr] <= {
+    staged_data1[25:18], // color -> bits [47:40]
+    staged_data1[17:9],  // h     -> bits [39:31]
+    staged_data1[8:0],   // w     -> bits [30:22]
+    staged_data0[21:13], // y     -> bits [21:13]
+    staged_data0[12:3],  // x     -> bits [12:3]
+    staged_data0[2],     // visible -> bit  [2]
+    staged_data0[1:0]    // type  -> bits [1:0]
+};
+\end{lstlisting}
+
+\textbf{Read returns.} \texttt{0}.
+
+\textbf{Latching.} \texttt{shadow[cur\_addr]} becomes the value the
+renderer sees at the next \texttt{vsync\_latch} pulse; until then the
+old active entry is still drawn.
 
 \subsubsection{Write Sequence}
 
@@ -809,16 +1208,42 @@ To update a shape entry, the CPU performs four writes in order:
   \item Write \texttt{SHAPE\_COMMIT} with any nonzero value.
 \end{enumerate}
 
-After step~4, the staging registers are copied into the shadow table at
-the specified index. The entry becomes visible on screen at the next
-vsync. Background cell writes (\texttt{BG\_CELL}) take effect
-immediately in the shadow grid with no explicit commit step.
+The \texttt{PVZ\_WRITE\_SHAPE} ioctl emits exactly this four-write
+burst (see Appendix~\ref{app:sw-headers}). Background cell writes
+(\texttt{BG\_CELL}) need only a single write --- no commit pulse is
+required because \texttt{bg\_grid} has no per-entry staging register,
+only a single shadow array.
 
 \subsection{Shape Table Entry Format}
 \label{sec:shape-entry}
 
 Each entry in the 48-deep shape table is stored as 48~bits, packed as
-shown in Figure~\ref{fig:shape-bits}.
+shown in Figure~\ref{fig:shape-bits}. The same field layout serves all
+four \texttt{type} values; the interpretation of \texttt{w},
+\texttt{h}, and \texttt{color} depends on \texttt{type}:
+
+\begin{itemize}[nosep]
+  \item \textbf{\texttt{type = 0} (rectangle):} \texttt{w} and \texttt{h}
+    are the footprint in pixels; \texttt{color} is the palette index
+    written into the line buffer on every hit.
+  \item \textbf{\texttt{type = 1} (circle):} \texttt{w} doubles as the
+    diameter; the circle is centred at
+    $(\mathtt{x} + \mathtt{w}/2,\ \mathtt{y} + \mathtt{h}/2)$ with
+    radius $\mathtt{w}/2$. \texttt{color} fills the disk.
+  \item \textbf{\texttt{type = 2} (7-segment digit):} \texttt{w}'s low
+    four bits (\texttt{w[3:0]}) carry the digit value 0--9; software
+    must still pass a \texttt{w} $\geq$ the glyph width (20 px) so the
+    draw loop covers the full footprint (hence the common idiom
+    \texttt{w = 32 + digit}). \texttt{h} should be $\geq$ 30.
+    \texttt{color} is the stroke color.
+  \item \textbf{\texttt{type = 3} (sprite):} \texttt{w} and \texttt{h}
+    give the on-screen footprint, set to 64$\times$64 today to match
+    the 2$\times$ up-scaled peashooter. \texttt{color} is ignored; the
+    pixel indices come from \texttt{sprite\_rom.sv} and
+    \texttt{0xFF} is the transparent sentinel. A future expansion will
+    repurpose part of the \texttt{color} field as a sprite-ID when the
+    ROM holds multiple sprites.
+\end{itemize}
 
 \begin{figure}[H]
 \centering
@@ -859,23 +1284,27 @@ shown in Figure~\ref{fig:shape-bits}.
 
 \subsection{Planned Register Extensions}
 
-The final version will add registers for sprite ROM access, audio
-control, and frame synchronization:
+Three groups of registers are not yet implemented. Sprite rendering
+currently keys entirely off \texttt{type = 3} in
+\texttt{SHAPE\_DATA0}, so once the ROM holds more than one sprite the
+shape-table entry must also carry a sprite ID and an animation frame
+--- the most natural place is to repurpose part of the currently
+unused upper bits of \texttt{SHAPE\_DATA1} rather than add a new
+register. Audio and a frame-sync status read are genuinely new:
 
 \begin{table}[H]
 \centering
-\caption{Planned additional registers.}
+\caption{Planned additional registers (not present in
+  commit \texttt{a6eb347}).}
 \label{tab:planned-regs}
 \begin{tabular}{c l l}
 \toprule
 \textbf{Offset} & \textbf{Name} & \textbf{Purpose} \\
 \midrule
-\texttt{0x14} & SPRITE\_ID     & Sprite ROM index for bitmap mode \\
-\texttt{0x18} & SPRITE\_FRAME  & Animation frame selector \\
-\texttt{0x1C} & AUDIO\_CTRL    & Start/stop BGM, trigger sound effect \\
-\texttt{0x20} & AUDIO\_ADDR    & Wave ROM start address for sound effect \\
-\texttt{0x24} & AUDIO\_LEN     & Sample count for sound effect clip \\
-\texttt{0x28} & STATUS         & $[0]$: vsync flag (read-only), for frame sync \\
+\texttt{0x14} & AUDIO\_CTRL    & Start/stop BGM, trigger sound effect \\
+\texttt{0x18} & AUDIO\_ADDR    & Wave ROM start address for sound effect \\
+\texttt{0x1C} & AUDIO\_LEN     & Sample count for sound effect clip \\
+\texttt{0x20} & STATUS         & $[0]$: vsync flag (read-only), for frame sync \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -886,8 +1315,81 @@ control, and frame synchronization:
 The Linux kernel module (\texttt{pvz\_driver.ko}) registers a misc
 device at \texttt{/dev/pvz}. It matches the device tree compatible
 string \texttt{csee4840,pvz\_gpu-1.0} generated by Platform Designer's
-\texttt{\_hw.tcl} component descriptor. The driver exposes three
-\texttt{ioctl} commands:
+\texttt{\_hw.tcl} component descriptor.
+Figure~\ref{fig:sw-stack} shows the full software path from the game
+loop to a peripheral register write.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >=Stealth,
+  us/.style   ={draw, rounded corners=2pt, fill=blue!10,
+                minimum width=6.2cm, minimum height=1.1cm,
+                align=center, font=\small\sffamily},
+  kern/.style ={draw, rounded corners=2pt, fill=orange!15,
+                minimum width=6.2cm, minimum height=1.1cm,
+                align=center, font=\small\sffamily},
+  fabric/.style={draw, rounded corners=2pt, fill=purple!12,
+                minimum width=6.2cm, minimum height=1.1cm,
+                align=center, font=\small\sffamily},
+  bus/.style  ={->, very thick},
+  elbl/.style ={font=\scriptsize\sffamily, fill=white, inner sep=2pt,
+                align=left, anchor=west},
+]
+  % Stack, top to bottom, with 2.0cm vertical spacing so multi-line edge
+  % labels cannot reach the next node.
+  \node[us]     (gl)  at (0, 5.0) {Game loop \textemdash\ \texttt{main.c}, \texttt{game.c}};
+  \node[us]     (rd)  at (0, 3.0) {\texttt{render\_frame} (\texttt{sw/render.c})};
+  \node[us]     (io)  at (0, 1.0) {\texttt{ioctl(fd, \ldots)} on \texttt{/dev/pvz}};
+  \node[kern]   (drv) at (0,-1.0) {\texttt{pvz\_ioctl} (\texttt{sw/pvz\_driver.c})};
+  \node[kern]   (iow) at (0,-3.0) {\texttt{iowrite32(val, virtbase + 4*N)}};
+  \node[fabric] (br)  at (0,-5.0) {Avalon-MM LW bridge @ \texttt{0xFF20\_0000}};
+  \node[fabric] (pv)  at (0,-7.0) {\texttt{pvz\_top} register decode};
+
+  % Arrows: keep labels tight and place them to the right at fixed x so
+  % they do not stack on top of the arrowhead/node.
+  \draw[bus] (gl)  -- (rd);
+  \node[elbl] at (3.3, 4.0) {once per frame (60\,Hz)};
+
+  \draw[bus] (rd)  -- (io);
+  \node[elbl] at (3.3, 2.0) {\texttt{pvz\_bg\_arg\_t} / \texttt{pvz\_shape\_arg\_t}};
+
+  \draw[bus] (io)  -- (drv);
+  \node[elbl] at (3.3, 0.0)
+    {\texttt{PVZ\_WRITE\_BG}\,/\,\texttt{PVZ\_WRITE\_SHAPE}\,/\,\texttt{PVZ\_COMMIT\_SHAPES}};
+
+  \draw[bus] (drv) -- (iow);
+  \node[elbl] at (3.3,-2.0)
+    {shape $\Rightarrow$ 4 writes: \texttt{ADDR}, \texttt{DATA0}, \texttt{DATA1}, \texttt{COMMIT}};
+
+  \draw[bus] (iow) -- (br);
+  \node[elbl] at (3.3,-4.0)
+    {CPU byte offset $4N \in \{\mathtt{0x00}\ldots\mathtt{0x10}\}$};
+
+  \draw[bus] (br)  -- (pv);
+  \node[elbl] at (3.3,-6.0)
+    {peripheral word \texttt{address} $\in \{0\ldots 4\}$};
+
+  % Region labels on the left, vertically centred in each region
+  \node[font=\footnotesize\sffamily\bfseries, color=blue!60,
+        anchor=east] at (-3.5, 3.0) {User space};
+  \node[font=\footnotesize\sffamily\bfseries, color=orange!70,
+        anchor=east] at (-3.5,-2.0) {Kernel};
+  \node[font=\footnotesize\sffamily\bfseries, color=purple!60,
+        anchor=east] at (-3.5,-6.0) {FPGA fabric};
+\end{tikzpicture}%
+\caption{Software stack. Each frame, \texttt{render\_frame} calls
+  \texttt{ioctl} three times (background writes, shape writes, and an
+  optional bulk commit). The driver packs each ioctl argument into
+  the peripheral's bitfield layout and issues one or more
+  \texttt{iowrite32}s. Those land in the lightweight bridge as
+  byte-offset writes; the Avalon fabric delivers them to
+  \texttt{pvz\_top} as word-offset writes because the TCL descriptor
+  sets \texttt{addressUnits = WORDS}.}
+\label{fig:sw-stack}
+\end{figure}
+
+The driver exposes three \texttt{ioctl} commands:
 
 \begin{table}[H]
 \centering
@@ -1037,13 +1539,13 @@ divided.
     (0, 0) rectangle ({640*\sx}, {60*\sy});
   \node at ({320*\sx}, {30*\sy}) {HUD: Plant Cards \quad Sun Counter \quad Wave Indicator};
 
-  % Grid region
-  \foreach \r in {0,...,4} {
-    \foreach \c in {0,...,8} {
-      \pgfmathsetmacro{\x}{\c * 71 * \sx}
-      \pgfmathsetmacro{\y}{(60 + \r * 84) * \sy}
-      \pgfmathsetmacro{\w}{71 * \sx}
-      \pgfmathsetmacro{\h}{84 * \sy}
+  % Grid region: 4 rows x 8 cols, 80x90 px per cell
+  \foreach \r in {0,...,3} {
+    \foreach \c in {0,...,7} {
+      \pgfmathsetmacro{\x}{\c * 80 * \sx}
+      \pgfmathsetmacro{\y}{(60 + \r * 90) * \sy}
+      \pgfmathsetmacro{\w}{80 * \sx}
+      \pgfmathsetmacro{\h}{90 * \sy}
       \pgfmathparse{mod(\r+\c,2) == 0 ? 1 : 0}
       \ifnum\pgfmathresult=1
         \fill[ForestGreen!25] (\x, \y) rectangle ({\x+\w}, {\y+\h});
@@ -1054,34 +1556,41 @@ divided.
     }
   }
 
-  % Labels
-  \node[rotate=90] at (-0.4, {(60+210)*\sy}) {\small 5 rows};
-  \draw[<->] ({640*\sx + 0.3}, {60*\sy}) -- ({640*\sx + 0.3}, {60*\sy + 420*\sy})
-    node[midway, right, font=\scriptsize] {420\,px};
+  % Labels (inside the grid, rotated 90)
+  \node[rotate=90] at (-0.4, {(60+180)*\sy}) {\small 4 rows};
+
+  % Right-side height indicators
+  \draw[<->] ({640*\sx + 0.3}, {60*\sy}) -- ({640*\sx + 0.3}, {60*\sy + 360*\sy})
+    node[midway, right, font=\scriptsize] {360\,px};
   \draw[<->] ({640*\sx + 0.3}, 0) -- ({640*\sx + 0.3}, {60*\sy})
     node[midway, right, font=\scriptsize] {60\,px};
 
-  % Bottom status
-  \node at ({320*\sx}, {(60 + 420 + 10)*\sy})
-    [font=\scriptsize\sffamily, text=gray] {9 columns $\times$ 71\,px each};
-
-  % Dimension labels
-  \node[below] at ({320*\sx}, {480*\sy + 0.15})
+  % Top dimension label — placed clearly ABOVE the rectangle with
+  % anchor=south so the text's baseline sits above the border.
+  \node[anchor=south]
+    at ({320*\sx}, {480*\sy + 0.15})
     {\small 640 pixels};
-  \node[left, rotate=90] at (-0.8, {240*\sy})
+  \node[anchor=south, font=\scriptsize\sffamily, text=gray]
+    at ({320*\sx}, {480*\sy + 0.55})
+    {8 columns $\times$ 80\,px each};
+
+  % Left dimension label, rotated, well clear of the rectangle
+  \node[anchor=south, rotate=90] at (-0.9, {240*\sy})
     {\small 480 pixels};
 
 \end{tikzpicture}
-\caption{Screen layout. The top 60 pixels hold the HUD; the remaining
-  420 pixels hold the $5 \times 9$ game grid (each cell approximately
-  $71 \times 84$ pixels). The checkerboard pattern distinguishes
-  alternating cells.}
+\caption{Screen layout. The top 60 pixels hold the HUD; the next
+  360 pixels hold the $4 \times 8$ game grid (each cell exactly
+  $80 \times 90$ pixels); \texttt{bg\_grid} returns black for the
+  leftover 60 pixels at the bottom. The checkerboard pattern
+  distinguishes alternating cells.}
 \label{fig:screen-layout}
 \end{figure}
 
-Coordinate mapping from grid cell $(r, c)$ to pixel origin:
+Coordinate mapping from grid cell $(r, c)$ to pixel origin (matches
+\texttt{CELL\_WIDTH} and \texttt{CELL\_HEIGHT} in \texttt{sw/game.h}):
 \[
-  x = c \times 71, \qquad y = 60 + r \times 84.
+  x = c \times 80, \qquad y = 60 + r \times 90.
 \]
 
 % ════════════════════════════════════════════════════════════════════════
@@ -1131,5 +1640,348 @@ the game logic without any hardware dependency:
 \end{itemize}
 
 % ════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Software Header Reference}
+\label{app:sw-headers}
+
+The declarations below are quoted verbatim from the source tree as of
+commit \texttt{a6eb347}. Static internals are omitted; only the
+identifiers a user-space or kernel-module reader needs are included.
+
+\subsection{\texttt{sw/pvz.h} --- shared ioctl and bitfield contract}
+\label{app:pvz-h}
+
+\begin{lstlisting}[language=C]
+#ifndef _PVZ_H
+#define _PVZ_H
+
+#include <linux/ioctl.h>
+
+/* Register byte offsets (from driver base) */
+#define PVZ_BG_CELL       0x00
+#define PVZ_SHAPE_ADDR    0x04
+#define PVZ_SHAPE_DATA0   0x08
+#define PVZ_SHAPE_DATA1   0x0C
+#define PVZ_SHAPE_COMMIT  0x10
+
+/* Shape types (matches hw/shape_renderer.sv) */
+#define SHAPE_RECT    0
+#define SHAPE_CIRCLE  1
+#define SHAPE_DIGIT   2
+#define SHAPE_SPRITE  3  /* 32x32 sprite ROM, 2x -> 64x64 on screen */
+
+/* Background cell write argument */
+typedef struct {
+    unsigned char row;    /* 0-3 */
+    unsigned char col;    /* 0-7 */
+    unsigned char color;  /* palette index 0-255 */
+} pvz_bg_arg_t;
+
+/* Shape write argument */
+typedef struct {
+    unsigned char  index;   /* shape table index 0-47 */
+    unsigned char  type;    /* SHAPE_RECT, SHAPE_CIRCLE, SHAPE_DIGIT, SHAPE_SPRITE */
+    unsigned char  visible; /* 1=visible, 0=hidden */
+    unsigned short x;       /* x position 0-639 */
+    unsigned short y;       /* y position 0-479 */
+    unsigned short w;       /* width (or digit value in low 4 bits for SHAPE_DIGIT) */
+    unsigned short h;       /* height */
+    unsigned char  color;   /* palette color index */
+} pvz_shape_arg_t;
+
+#define PVZ_MAGIC         'p'
+#define PVZ_WRITE_BG      _IOW(PVZ_MAGIC, 1, pvz_bg_arg_t)
+#define PVZ_WRITE_SHAPE   _IOW(PVZ_MAGIC, 2, pvz_shape_arg_t)
+#define PVZ_COMMIT_SHAPES _IO (PVZ_MAGIC, 3)
+
+#endif /* _PVZ_H */
+\end{lstlisting}
+
+\subsection{\texttt{sw/pvz\_driver.h} --- kernel-side device state}
+\label{app:pvz-driver-h}
+
+\begin{lstlisting}[language=C]
+#ifndef _PVZ_DRIVER_H
+#define _PVZ_DRIVER_H
+
+#include <linux/miscdevice.h>
+#include <linux/platform_device.h>
+
+#define DRIVER_NAME "pvz"
+
+struct pvz_dev {
+    struct resource res;
+    void __iomem   *virtbase;
+};
+
+#endif /* _PVZ_DRIVER_H */
+\end{lstlisting}
+
+\subsection{Game-side function prototypes}
+\label{app:game-h}
+
+\texttt{sw/game.h} (elided: constants and struct bodies --- see the
+source for the full type definitions; constants match
+Table~\ref{tab:plants} and the timing numbers in \S\ref{sec:algo-gameloop}):
+
+\begin{lstlisting}[language=C]
+/* Grid + window constants (subset) */
+#define GRID_ROWS     4
+#define GRID_COLS     8
+#define GAME_AREA_Y   60
+#define CELL_WIDTH    80
+#define CELL_HEIGHT   90
+
+/* Public entry points */
+void game_init  (game_state_t *gs);
+void game_update(game_state_t *gs);
+int  game_place_plant (game_state_t *gs);
+int  game_remove_plant(game_state_t *gs);
+\end{lstlisting}
+
+The renderer's public surface from \texttt{sw/render.h} (all other
+functions in \texttt{render.c} are \texttt{static}):
+
+\begin{lstlisting}[language=C]
+int  render_init (int fpga_fd);  /* stash /dev/pvz fd */
+void render_frame(const game_state_t *gs);  /* one-shot per frame */
+\end{lstlisting}
+
+% ════════════════════════════════════════════════════════════════════════
+\section{Verilog Module Interface Reference}
+\label{app:hw-interfaces}
+
+\subsection{Module-instantiation hierarchy}
+\label{app:hw-hierarchy}
+
+\begin{lstlisting}[language={}, basicstyle=\ttfamily\small]
+soc_system_top                 (hw/soc_system_top.sv)
+  soc_system (generated by Platform Designer)
+    hps_0        -- HPS hard IP (ARM Cortex-A9, DDR3, peripherals)
+    pvz_top_0    -- our peripheral:
+      vga_counters   (1 instance)
+      linebuffer     (1 instance; holds two 640x8 banks internally)
+      bg_grid        (1 instance)
+      shape_table    (1 instance)
+      sprite_rom     (1 instance)
+      shape_renderer (1 instance)
+      color_palette  (1 instance; combinational, no state)
+\end{lstlisting}
+
+\texttt{soc\_system} is generated by \texttt{hw/soc\_system.qsys} and
+is not checked in as hand-written Verilog. The \texttt{pvz\_top\_0}
+instance is registered through \texttt{hw/pvz\_top\_hw.tcl}
+(Appendix~\ref{app:dts-fragment}).
+
+\subsection{Per-module port summaries}
+\label{app:hw-ports}
+
+Each listing below reproduces the module's \texttt{module~name(~...~)}
+header (comments trimmed). Non-obvious ports carry a one-line
+annotation.
+
+\textbf{\texttt{pvz\_top}} --- Avalon-MM agent, top of the peripheral tree.
+\begin{lstlisting}[language=Verilog]
+module pvz_top(
+    input  logic        clk,
+    input  logic        reset,
+    // Avalon-MM slave (agent); readdata deliberately absent (write-only).
+    input  logic [2:0]  address,       // word offset 0..4; byte offsets are 4x
+    input  logic [31:0] writedata,
+    input  logic        write,
+    input  logic        chipselect,
+    // VGA conduit to board pins (see soc_system_top)
+    output logic [7:0]  VGA_R, VGA_G, VGA_B,
+    output logic        VGA_CLK, VGA_HS, VGA_VS,
+    output logic        VGA_BLANK_n,
+    output logic        VGA_SYNC_n
+);
+\end{lstlisting}
+
+\textbf{\texttt{vga\_counters}} --- 640$\times$480@60\,Hz timing generator
+(extracted from lab3, Stephen A. Edwards).
+\begin{lstlisting}[language=Verilog]
+module vga_counters(
+    input  logic        clk50,         // 50 MHz board clock
+    input  logic        reset,
+    output logic [10:0] hcount,        // 0..1599 (2 x pixel column)
+    output logic [9:0]  vcount,        // 0..524  (scanline + blanking)
+    output logic        VGA_CLK,       // 25 MHz pixel clock (hcount[0])
+    output logic        VGA_HS, VGA_VS,
+    output logic        VGA_BLANK_n,
+    output logic        VGA_SYNC_n
+);
+\end{lstlisting}
+
+\textbf{\texttt{linebuffer}} --- dual 640$\times$8-bit banks with hsync swap.
+\begin{lstlisting}[language=Verilog]
+module linebuffer(
+    input  logic        clk,
+    input  logic        reset,
+    // Write port: shape_renderer drives the "draw" bank
+    input  logic        wr_en,
+    input  logic [9:0]  wr_addr,
+    input  logic [7:0]  wr_data,
+    // Read port: pvz_top drives pixel_x as rd_addr; registered output
+    input  logic [9:0]  rd_addr,
+    output logic [7:0]  rd_data,
+    input  logic        swap           // pulse at hcount=0 flips sel flop
+);
+\end{lstlisting}
+
+\textbf{\texttt{bg\_grid}} --- 4$\times$8 shadow+active grid with coordinate lookup.
+\begin{lstlisting}[language=Verilog]
+module bg_grid(
+    input  logic        clk,
+    input  logic        reset,
+    // CPU write port (targets shadow only)
+    input  logic        wr_en,
+    input  logic [2:0]  wr_col,        // 0..7
+    input  logic [1:0]  wr_row,        // 0..3
+    input  logic [7:0]  wr_color,
+    input  logic        vsync_latch,   // shadow -> active on this pulse
+    // Pixel-coordinate query: returns cell color or 0 outside game area
+    input  logic [9:0]  px, py,
+    output logic [7:0]  color_out
+);
+\end{lstlisting}
+
+\textbf{\texttt{shape\_table}} --- 48-entry shadow+active table,
+write-staging with commit pulse.
+\begin{lstlisting}[language=Verilog]
+module shape_table(
+    input  logic        clk,
+    input  logic        reset,
+    // CPU write interface: staging regs then explicit commit
+    input  logic        addr_wr,     input  logic [5:0]  addr_data,
+    input  logic        data0_wr,    input  logic [31:0] data0,
+    input  logic        data1_wr,    input  logic [31:0] data1,
+    input  logic        commit_wr,   // shadow[cur_addr] <= packed staged data
+    input  logic        vsync_latch, // shadow -> active each vsync
+    // Read port (renderer-facing, unpacked from active)
+    input  logic [5:0]  rd_index,
+    output logic [1:0]  rd_type,
+    output logic        rd_visible,
+    output logic [9:0]  rd_x,
+    output logic [8:0]  rd_y, rd_w, rd_h,
+    output logic [7:0]  rd_color
+);
+\end{lstlisting}
+
+\textbf{\texttt{sprite\_rom}} --- 1\,024$\times$8-bit M10K ROM loaded from
+\texttt{peas\_idx.mem}; 1-cycle registered output.
+\begin{lstlisting}[language=Verilog]
+module sprite_rom(
+    input  logic        clk,
+    input  logic [9:0]  addr,          // y*32 + x
+    output logic [7:0]  pixel          // registered: valid one cycle after addr
+);
+\end{lstlisting}
+
+\textbf{\texttt{shape\_renderer}} --- scanline FSM; ports include a
+ready/valid-style handshake with the sprite ROM.
+\begin{lstlisting}[language=Verilog]
+module shape_renderer(
+    input  logic        clk, reset,
+    input  logic        render_start,   // pulse at start of each scanline
+    input  logic [9:0]  scanline,
+    output logic        render_done,
+    // bg_grid query
+    output logic [9:0]  bg_px, bg_py,
+    input  logic [7:0]  bg_color,
+    // shape_table read port (1-cycle latency through shape_table internals)
+    output logic [5:0]  shape_index,
+    input  logic [1:0]  shape_type,
+    input  logic        shape_visible,
+    input  logic [9:0]  shape_x,
+    input  logic [8:0]  shape_y, shape_w, shape_h,
+    input  logic [7:0]  shape_color,
+    // sprite_rom read port (address comb, pixel returns NEXT cycle)
+    output logic [9:0]  sprite_rd_addr,
+    input  logic [7:0]  sprite_rd_pixel,
+    // linebuffer write port
+    output logic        lb_wr_en,
+    output logic [9:0]  lb_wr_addr,
+    output logic [7:0]  lb_wr_data
+);
+\end{lstlisting}
+
+\textbf{\texttt{color\_palette}} --- combinational 8-bit $\to$ 24-bit LUT.
+\begin{lstlisting}[language=Verilog]
+module color_palette(
+    input  logic [7:0]  index,
+    output logic [7:0]  r, g, b        // hardcoded 13 entries; rest black
+);
+\end{lstlisting}
+
+\textbf{\texttt{soc\_system\_top}} --- DE1-SoC board top-level. Ports
+are all DE1-SoC-mandated I/O pins (VGA, HPS DDR3, HPS USB/Ethernet/SD,
+HEX, KEY, SW, LEDR, GPIO, etc.). The full list is too long to repeat
+here; see \texttt{hw/soc\_system\_top.sv} lines 9--155. Internally
+this module only instantiates \texttt{soc\_system} (the Platform
+Designer-generated wrapper) and wires safe stubs to the unused board
+pins.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{File Formats}
+\label{app:file-formats}
+
+\subsection{\texttt{peas\_idx.mem} --- sprite ROM initialiser}
+\label{app:mem-format}
+
+The file is the ASCII-hex format accepted by Verilog's
+\texttt{\$readmemh}. \texttt{sprite\_rom.sv} reads exactly 1\,024 bytes
+in row-major order (row 0 first, 32 columns per row, so byte $N = y
+\times 32 + x$). One byte per pixel, storing a palette index:
+
+\begin{itemize}[nosep]
+  \item \texttt{0x00}--\texttt{0x0C} --- palette entries 0..12
+    as defined by \texttt{hw/color\_palette.sv}.
+  \item \texttt{0xFF} --- transparent sentinel; the renderer suppresses
+    the line-buffer write when the sampled byte equals \texttt{0xFF}.
+  \item Any other value --- currently treated as black by
+    \texttt{color\_palette} (its \texttt{default} case returns
+    \texttt{8'h00}); software avoids emitting such values.
+\end{itemize}
+
+The file is generated out-of-band from the peashooter PNG artwork and
+must be kept in sync with the palette. It is consumed at synthesis
+time by Quartus and at simulation time by the testbench.
+
+\subsection{Device-tree fragment}
+\label{app:dts-fragment}
+
+\texttt{hw/pvz\_top\_hw.tcl} declares the Platform Designer metadata
+that ends up in the generated \texttt{.dtb}:
+
+\begin{lstlisting}[language=tcl]
+set_module_assignment embeddedsw.dts.compatible "csee4840,pvz_gpu-1.0"
+set_module_assignment embeddedsw.dts.group      "pvz_gpu"
+set_module_assignment embeddedsw.dts.vendor     "csee4840"
+\end{lstlisting}
+
+After \texttt{sopc2dts} + \texttt{dtc}, the node in
+\texttt{soc\_system.dtb} looks like:
+
+\begin{lstlisting}[language={}]
+pvz_gpu_0: pvz_gpu@ff200000 {
+    compatible = "csee4840,pvz_gpu-1.0";
+    reg        = <0xff200000 0x00000020>;
+};
+\end{lstlisting}
+
+The compatible string must also appear verbatim in the kernel
+module's \texttt{of\_device\_id} table
+(\texttt{sw/pvz\_driver.c:pvz\_of\_match}) for probe to succeed.
+
+\subsection{Other inputs and outputs}
+
+The project currently reads or writes no other external-format files
+beyond the two above and the Quartus toolchain outputs. No save-game
+file, config file, or on-board persistent store exists: the game state
+is ephemeral and the player's only input device is the USB gamepad
+(parsed live by \texttt{sw/input.c} via libusb). Test fixtures in
+\texttt{sw/test/} link directly against the game library and need no
+external data.
 
 \end{document}
