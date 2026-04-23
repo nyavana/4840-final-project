@@ -4,6 +4,12 @@
  * tb/fixtures/sfx_test.mem (12 samples packed as 3 × 4-sample clips).
  * pulse_tick is 1-cycle to match production pvz_audio.sv sample_tick.
  */
+/*
+ * NOTE: compile this testbench with `vlog +define+TB_VOICE_SFX` so that
+ * `voice_sfx.sv` includes `tb/fixtures/sfx_offsets_test.svh` instead of the
+ * production `sfx_offsets.svh` (all zeros). Without the define the
+ * assertions will fail because the offsets would be zero.
+ */
 `timescale 1ns/1ps
 
 module tb_voice_sfx;
