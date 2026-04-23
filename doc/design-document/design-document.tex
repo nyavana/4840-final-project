@@ -549,23 +549,87 @@ and two attack frames for the Peashooter). The sprite table entry's
 \texttt{frame} field will select which animation frame to display.
 
 % ────────────────────────────────────────────────────────────────────────
-\subsection{Audio Playback (Planned)}
+\subsection{Audio Playback}
 \label{sec:algo-audio}
 
-The Wolfson WM8731 codec on the DE1-SoC accepts I$^2$S serial audio
-data and provides analog output through the 3.5\,mm jack.
+The audio engine delivers 8\,kHz, 16-bit signed mono PCM to the Wolfson
+WM8731 codec on the DE1-SoC's 3.5\,mm jack. The codec is driven by
+Intel's \texttt{altera\_up\_avalon\_audio} IP over I$^2$S.
+One-time codec initialisation (sample rate, word length, DAC enable) is
+handled by \texttt{altera\_up\_avalon\_audio\_and\_video\_config} over
+I$^2$C; \texttt{altera\_up\_avalon\_audio\_pll} supplies the required
+12\,MHz master clock. The mono mixed output is duplicated to the left
+and right Avalon-ST channels before the IP's handshake logic.
 
-\textbf{Configuration.}\ At boot, software writes a sequence of register
-values over the I$^2$C bus to set the codec's sample rate (8\,kHz),
-word length (16-bit), and enable the DAC output path.
+\textbf{On-chip BRAMs.}\ Two BRAMs are pre-loaded at synthesis time via
+\texttt{\$readmemh}:
+\begin{itemize}[nosep]
+  \item \texttt{bgm\_rom} --- up to 131\,072 samples
+    (${\approx}16$\,s headroom) for background music; the current
+    placeholder is a 15-second 220--880\,Hz tone sweep.
+  \item \texttt{sfx\_rom} --- up to 32\,768 samples (${\approx}4$\,s
+    total) for eight SFX clips packed back-to-back; clip boundaries are
+    defined by the auto-generated include \texttt{sfx\_offsets.svh}
+    (arrays \texttt{SFX\_START[1:8]} and \texttt{SFX\_END[1:8]}).
+\end{itemize}
 
-\textbf{Playback.}\ A hardware audio controller reads PCM samples from
-an on-chip wave ROM and feeds them to the codec at the configured sample
-rate. The wave ROM holds a looping background track and a handful of
-short sound-effect clips. Software selects which clip to play by writing
-a start address and length to audio control registers; the controller
-then streams from that region, mixing it with the background track by
-clamping the sum of the two sample values.
+\textbf{Voice and mixer architecture.}\ Three voice modules feed a
+common mixer:
+\begin{itemize}[nosep]
+  \item \texttt{voice\_bgm} --- continuous play/stop with wrapping loop.
+  \item \texttt{voice\_sfx} $\times 2$ --- two-state FSM
+    (IDLE\,/\,PLAYING); each cue advances one FSM from IDLE to PLAYING
+    and records the clip start and end addresses from
+    \texttt{sfx\_offsets.svh}.
+\end{itemize}
+The three signed 16-bit outputs are summed in \texttt{mixer.sv} with
+symmetric int16 saturation clamping to avoid wraparound distortion.
+
+\textbf{Register map and driver.}\ Audio control is exposed through a
+second Avalon-MM peripheral, \texttt{pvz\_audio}, mapped at
+\texttt{0xff201000} (distinct from \texttt{pvz\_gpu} at
+\texttt{0xff200000}).  The four-word register interface is listed in
+Table~\ref{tab:audio-regmap}.
+
+\begin{table}[H]
+\centering
+\caption{\texttt{pvz\_audio} register map (32-bit words, byte offsets).}
+\label{tab:audio-regmap}
+\small
+\begin{tabular}{c l l}
+\toprule
+\textbf{Offset} & \textbf{Name} & \textbf{Description} \\
+\midrule
+\texttt{0x00} & \texttt{BGM\_CTRL}       & Bit~0: 1\,=\,play, 0\,=\,stop background music \\
+\texttt{0x04} & \texttt{SFX\_VOICE0\_TRIG} & Write SFX clip index (1--8) to trigger on voice~0 \\
+\texttt{0x08} & \texttt{SFX\_VOICE1\_TRIG} & Write SFX clip index (1--8) to trigger on voice~1 \\
+\texttt{0x0C} & \texttt{STATUS}          & Read: bit~0 voice~0 busy, bit~1 voice~1 busy \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Linux misc-device driver \texttt{pvz\_audio\_driver.ko} exposes
+\texttt{/dev/pvz\_audio} with three ioctls (BGM start/stop, SFX cue).
+The driver round-robins between \texttt{SFX\_VOICE0\_TRIG} and
+\texttt{SFX\_VOICE1\_TRIG} on successive cue calls so that two
+back-to-back SFX triggers do not stomp each other.  The userspace
+wrapper \texttt{audio.c} mirrors the structure of \texttt{render.c}; a
+state-edge tracker in \texttt{main.c} starts BGM when the game enters
+\texttt{STATE\_PLAYING} and stops it on \texttt{STATE\_WIN} or
+\texttt{STATE\_LOSE}.
+
+\textbf{Scope~A convention.}\ The SFX path is fully wired end-to-end
+(ioctl $\to$ driver $\to$ register $\to$ voice $\to$ mixer $\to$ codec)
+but \texttt{sfx\_rom.mem} currently contains zero samples, so SFX
+ioctls execute silently.  Adding audible effects is a pure asset change:
+place eight WAV files in \texttt{hw/audio/assets/} and run
+\texttt{make audio}, which invokes the Python generator
+\texttt{hw/audio/build\_audio\_mif.py}.  That script reads
+\texttt{manifest.json} and emits \texttt{bgm\_rom.mem},
+\texttt{sfx\_rom.mem}, and \texttt{sfx\_offsets.svh}, then
+re-synthesising the bitstream picks up the new samples automatically.
+Replacing the placeholder BGM sweep with a real arrangement follows the
+same asset-only path.
 
 % ════════════════════════════════════════════════════════════════════════
 \section{Entity Design}
