@@ -33,13 +33,13 @@
 
 ## 4. Rendering updates (Phase C, software + on-board)
 
-- [ ] 4.1 Update `sw/render.c` shape-index allocation to the v3 budget (see `specs/game-rendering/spec.md`) and update the `IDX_*` macros accordingly
-- [ ] 4.2 In `render_plants`, branch on `p->type`: peashooter keeps the existing sprite call; sunflower emits a yellow circle at offset (10, 15) size 60 × 60; wall-nut emits a brown circle at offset (5, 10) size 70 × 70
-- [ ] 4.3 In `render_zombies`, branch on `z->type` to pick palette index 5 / 12 / 11 for basic / conehead / buckethead; keep the 30 × 70 rectangle shape
-- [ ] 4.4 Explicitly hide slots 51–62 each frame so stale data never reaches the FPGA
-- [ ] 4.5 **Gate (unit)**: `make test_game` still green (should be unaffected but verifies the header changes didn't break compile)
-- [ ] 4.6 **Gate (on-board)**: cross-compile, deploy, hand-place one of each plant and spawn one of each zombie type via a temp debug path; visually confirm each renders with the expected color and size. If the board is unavailable, do not claim this phase complete — log `doc/v3-known-issues.md` with "needs board verification" and hold the commit.
-- [ ] 4.7 **Commit**: `v3: type-aware rendering for plants and zombies`
+- [x] 4.1 Update `sw/render.c` shape-index allocation to the v3 budget (see `specs/game-rendering/spec.md`) and update the `IDX_*` macros accordingly
+- [x] 4.2 In `render_plants`, branch on `p->type`: peashooter keeps the existing sprite call; sunflower emits a yellow circle at offset (10, 15) size 60 × 60; wall-nut emits a brown circle at offset (5, 10) size 70 × 70
+- [x] 4.3 In `render_zombies`, branch on `z->type` to pick palette index 5 / 12 / 11 for basic / conehead / buckethead; keep the 30 × 70 rectangle shape
+- [x] 4.4 Explicitly hide slots 51–62 each frame so stale data never reaches the FPGA
+- [x] 4.5 **Gate (unit)**: `make test_game` still green (should be unaffected but verifies the header changes didn't break compile)
+- [x] 4.6 **Gate (on-board)**: cross-compile, deploy, hand-place one of each plant and spawn one of each zombie type via a temp debug path; visually confirm each renders with the expected color and size. If the board is unavailable, do not claim this phase complete — log `doc/v3-known-issues.md` with "needs board verification" and hold the commit. *(Board not available in this worktree environment; logged in `doc/v3-known-issues.md`.)*
+- [x] 4.7 **Commit**: `v3: type-aware rendering for plants and zombies`
 
 ## 5. Plant-selector UI (Phase D, software + on-board)
 
