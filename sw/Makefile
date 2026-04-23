@@ -1,7 +1,7 @@
 ifneq (${KERNELRELEASE},)
 
 # KERNELRELEASE defined: being compiled as part of the kernel
-	obj-m := pvz_driver.o
+	obj-m := pvz_driver.o pvz_audio_driver.o
 
 else
 
