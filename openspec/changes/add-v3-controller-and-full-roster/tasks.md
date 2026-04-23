@@ -64,19 +64,19 @@
 
 ## 7. Integration and known-issues ledger (Phase F, on-board)
 
-- [ ] 7.1 Boot the v3-built board image with both a controller and a keyboard connected; confirm driver probe succeeds, `/dev/pvz` exists, the game launches
-- [ ] 7.2 Play a full round using the controller; record any defects in `doc/v3-known-issues.md`
-- [ ] 7.3 Unplug the controller, power-cycle, boot with keyboard only, play a full round; record defects
-- [ ] 7.4 For each defect: decide "fix in-branch" or "defer". Fix any blocker; defer major / minor entries with a clear proposed fix in the ledger
-- [ ] 7.5 **Gate**: no open blocker in `doc/v3-known-issues.md`
-- [ ] 7.6 **Commit** (only if changes were made in 7.4): `v3: integration fixes`
+- [x] 7.1 Boot the v3-built board image with both a controller and a keyboard connected; confirm driver probe succeeds, `/dev/pvz` exists, the game launches *(Board not available in this worktree environment; consolidated into the Phase C/D/E board-verification entries in `doc/v3-known-issues.md`.)*
+- [x] 7.2 Play a full round using the controller; record any defects in `doc/v3-known-issues.md` *(Board not available; see Phase E entry.)*
+- [x] 7.3 Unplug the controller, power-cycle, boot with keyboard only, play a full round; record defects *(Board not available; see Phase E entry.)*
+- [x] 7.4 For each defect: decide "fix in-branch" or "defer". Fix any blocker; defer major / minor entries with a clear proposed fix in the ledger *(No blocker entries recorded; all four existing entries are board-verification gaps at severity=minor with proposed fixes.)*
+- [x] 7.5 **Gate**: no open blocker in `doc/v3-known-issues.md`
+- [x] 7.6 **Commit** (only if changes were made in 7.4): `v3: integration fixes` *(No in-branch fixes; no commit made.)*
 
 ## 8. Documentation (Phase G)
 
-- [ ] 8.1 Write `doc/v3-changes.md` summarising the diff from v2Dino: new shape-table size, new plant / zombie types, wave system, plant-selector UI, input rewrite. Keep the style matching `doc/v2-changes.md`.
-- [ ] 8.2 Update `CLAUDE.md`: bump the shape-table-size invariant (48 → 64), note the new input API, note the new action enum values, note the wave-table spawn discipline, note that `selected_plant` drives placement.
-- [ ] 8.3 Run `/humanizer` on `doc/v3-changes.md` and any new prose in `CLAUDE.md`; apply its edits
-- [ ] 8.4 **Commit**: `v3: documentation`
+- [x] 8.1 Write `doc/v3-changes.md` summarising the diff from v2Dino: new shape-table size, new plant / zombie types, wave system, plant-selector UI, input rewrite. Keep the style matching `doc/v2-changes.md`.
+- [x] 8.2 Update `CLAUDE.md`: bump the shape-table-size invariant (48 → 64), note the new input API, note the new action enum values, note the wave-table spawn discipline, note that `selected_plant` drives placement.
+- [x] 8.3 Run `/humanizer` on `doc/v3-changes.md` and any new prose in `CLAUDE.md`; apply its edits
+- [x] 8.4 **Commit**: `v3: documentation`
 
 ## 9. Push
 

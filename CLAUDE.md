@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Plants vs Zombies on the Terasic DE1-SoC (Cyclone V) — a CSEE4840 Embedded Systems final project. The full design is described in `doc/proposal/proposal.md` (read this first for gameplay rules, balance numbers, and the HW/SW split). Target: 640x480 VGA @ 60 Hz with hardware sprite blitting, USB gamepad input, and audio over the Wolfson codec.
 
-**Current state:** Milestone 1 (MVP) is complete — working FPGA display engine, kernel driver, and game loop with primitive graphics. CI/CD via GitHub Actions cross-compiles software for ARM on every push and creates releases on `v*` tags. Board deployment is automated via `deploy.sh`.
+**Current state:** Milestone 1 (MVP) is complete. v3 (branch `v3-controller-and-roster`) adds the full roster of three plants and three zombies, a wave-table spawn system, a plant-selector HUD, and USB gamepad auto-detect with keyboard fallback. CI/CD via GitHub Actions cross-compiles software for ARM on every push and creates releases on `v*` tags. Board deployment is automated via `deploy.sh`.
 
 ## Repository layout
 
@@ -41,6 +41,11 @@ Every new hardware peripheral needs a matching Platform Designer component, a `s
 - **Shadow/active register latching at vsync** is how the lab3 ball avoids tearing (`vga_ball.sv` lines 36–63). Any register that affects what's drawn must be latched at `vcount == VACTIVE && hcount == 0`, not on the Avalon write.
 - **BRAM reads are 1–2 cycles.** Disable registered output on memory IP or account for the extra cycle in pipelines — another bubble-bobble lesson (§6).
 - **Linebuffer approach** (bubble-bobble): draw line N+1 into buffer B while displaying line N from buffer A, swap on hsync. Gives 1600 cycles per line to produce pixels and makes sprite transparency trivial. A full 640×480×8bpp frame buffer in on-chip SRAM is also viable but tighter on memory — pick deliberately, see proposal §Display.
+- **Shape-table size is 64** (as of v3). `shape_table.sv`, `shape_renderer.sv` iteration bound, and `pvz_driver.c`'s range check all agree on 0..63. `SHAPE_ADDR` has always been 6 bits so no register-layout change was needed; only the pack arrays and the bound moved. Any new HUD element picks from the reserved slots 51–62; the cursor at slot 63 must stay on top.
+- **Z-order by shape index.** The renderer is painter's-algorithm: slot `i` paints on top of slot `j` when `i > j`. The v3 plant-selector uses this intentionally — the yellow highlight sits at slot 43 below the cards at 44–46, so each card covers the centre of the highlight and only a 2-pixel yellow border around the selected card remains visible.
+- **Wave-table spawn discipline** (v3). `sw/game.c::game_init` seeds `gs->wave[]` from a compile-time template with ±60 frame jitter. `update_spawning` walks the array by `frame_count`. If every zombie slot is busy when the scheduled frame hits, the spawn is held — `wave_index` only advances once the spawn lands. Tests rely on this determinism under a fixed `srand` seed.
+- **`gs->selected_plant` drives placement** (v3). `game_place_plant` no longer hardcodes Peashooter; it reads `selected_plant ∈ {0,1,2}` and maps it to PLANT_PEASHOOTER / _SUNFLOWER / _WALLNUT. `main.c`'s `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT` handlers call `cycle_plant_prev` / `cycle_plant_next`, which modulo-3 the selection and no-op while game-over.
+- **Input auto-detect** (v3). `input_init()` takes no arguments. It enumerates `/dev/input/event0..31`, picks the first device advertising `BTN_SOUTH` as a gamepad, falls back to the first device advertising `KEY_SPACE`, and logs the chosen path. The new `input_action_t` enum (`INPUT_UP/_DOWN/_LEFT/_RIGHT/_PLACE/_DIG/_CYCLE_PREV/_CYCLE_NEXT/_QUIT/_NONE`) is the unified action space — game code never branches on device. On the board image, `modprobe xpad` is required for Xbox 360–compatible controllers; without it, auto-detect silently falls back to keyboard. `sw/test/test_input_devices` prints the enumeration verdict and is the first thing to run after plugging or unplugging a controller.
 
 ## Build & deploy workflow
 
@@ -81,7 +86,7 @@ make CC=arm-linux-gnueabihf-gcc \
 ./deploy.sh download   # download latest release from GitHub
 ./deploy.sh install    # load kernel module
 ./deploy.sh run        # start the game
-./deploy.sh test <n>   # run a test (test_shapes, test_input, test_game)
+./deploy.sh test <n>   # run a test (test_shapes, test_input, test_input_devices, test_game)
 ./deploy.sh status     # show current state
 ```
 
