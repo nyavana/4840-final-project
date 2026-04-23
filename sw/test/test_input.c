@@ -1,41 +1,38 @@
 /*
- * Test program: print keyboard events from /dev/input/eventX
+ * Test program: echo resolved actions from the auto-detected input
+ * device.  Use on-board with controller and/or keyboard plugged in.
  *
- * Usage: ./test_input [/dev/input/eventN]
- * Default: /dev/input/event0
+ * Usage: ./test_input
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include "../input.h"
 
-int main(int argc, char *argv[])
+int main(void)
 {
-    const char *dev_path = "/dev/input/event0";
-    if (argc > 1)
-        dev_path = argv[1];
-
-    printf("Opening %s for keyboard events...\n", dev_path);
-    printf("Press arrow keys, space, D, ESC. Ctrl+C to quit.\n\n");
-
-    if (input_init(dev_path) < 0) {
-        fprintf(stderr, "Failed to open %s\n", dev_path);
+    if (input_init() < 0) {
+        fprintf(stderr, "No gamepad or keyboard found\n");
         return 1;
     }
 
+    printf("Device ready (%s).  Press Start/ESC to quit.\n",
+           input_is_gamepad() ? "gamepad" : "keyboard");
+
     for (;;) {
-        int key = input_poll();
-        switch (key) {
-        case INPUT_UP:    printf("UP\n"); break;
-        case INPUT_DOWN:  printf("DOWN\n"); break;
-        case INPUT_LEFT:  printf("LEFT\n"); break;
-        case INPUT_RIGHT: printf("RIGHT\n"); break;
-        case INPUT_SPACE: printf("SPACE (place plant)\n"); break;
-        case INPUT_D:     printf("D (remove plant)\n"); break;
-        case INPUT_ESC:   printf("ESC (quit)\n"); input_close(); return 0;
-        case INPUT_NONE:  break;
+        input_action_t action = input_poll();
+        switch (action) {
+        case INPUT_UP:         printf("UP\n"); break;
+        case INPUT_DOWN:       printf("DOWN\n"); break;
+        case INPUT_LEFT:       printf("LEFT\n"); break;
+        case INPUT_RIGHT:      printf("RIGHT\n"); break;
+        case INPUT_PLACE:      printf("PLACE\n"); break;
+        case INPUT_DIG:        printf("DIG\n"); break;
+        case INPUT_CYCLE_PREV: printf("CYCLE_PREV\n"); break;
+        case INPUT_CYCLE_NEXT: printf("CYCLE_NEXT\n"); break;
+        case INPUT_QUIT:       printf("QUIT\n"); input_close(); return 0;
+        case INPUT_NONE:       break;
         }
         usleep(16667); /* ~60 Hz polling */
     }

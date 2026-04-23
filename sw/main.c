@@ -1,10 +1,11 @@
 /*
  * Plants vs Zombies — Main game loop
  *
- * Initializes the FPGA driver, keyboard input, and game state,
- * then runs a 60 Hz loop: input -> update -> render -> write to FPGA.
+ * Initializes the FPGA driver, input auto-detect (gamepad > keyboard),
+ * and game state, then runs a 60 Hz loop: input -> update -> render ->
+ * write to FPGA.
  *
- * Usage: ./pvz [/dev/input/eventN]
+ * Usage: ./pvz
  */
 
 #include <stdio.h>
@@ -33,10 +34,10 @@ static long long get_time_usec(void)
 
 static void process_input(game_state_t *gs)
 {
-    int key;
+    input_action_t action;
 
-    while ((key = input_poll()) != INPUT_NONE) {
-        switch (key) {
+    while ((action = input_poll()) != INPUT_NONE) {
+        switch (action) {
         case INPUT_UP:
             if (gs->cursor_row > 0) gs->cursor_row--;
             break;
@@ -49,10 +50,10 @@ static void process_input(game_state_t *gs)
         case INPUT_RIGHT:
             if (gs->cursor_col < GRID_COLS - 1) gs->cursor_col++;
             break;
-        case INPUT_SPACE:
+        case INPUT_PLACE:
             game_place_plant(gs);
             break;
-        case INPUT_D:
+        case INPUT_DIG:
             game_remove_plant(gs);
             break;
         case INPUT_CYCLE_PREV:
@@ -61,20 +62,21 @@ static void process_input(game_state_t *gs)
         case INPUT_CYCLE_NEXT:
             cycle_plant_next(gs);
             break;
-        case INPUT_ESC:
+        case INPUT_QUIT:
             gs->state = -1; /* signal exit */
             return;
+        case INPUT_NONE:
+            break;
         }
     }
 }
 
 int main(int argc, char *argv[])
 {
-    const char *input_dev = "/dev/input/event0";
-    game_state_t gs;
+    (void)argc;
+    (void)argv;
 
-    if (argc > 1)
-        input_dev = argv[1];
+    game_state_t gs;
 
     /* Seed random number generator */
     srand((unsigned)time(NULL));
@@ -87,10 +89,9 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* Initialize keyboard input */
-    if (input_init(input_dev) < 0) {
-        fprintf(stderr, "Failed to open %s\n", input_dev);
-        fprintf(stderr, "Usage: %s [/dev/input/eventN]\n", argv[0]);
+    /* Initialize input (auto-detect gamepad or keyboard) */
+    if (input_init() < 0) {
+        fprintf(stderr, "No gamepad or keyboard detected\n");
         close(pvz_fd);
         return 1;
     }
@@ -101,8 +102,12 @@ int main(int argc, char *argv[])
     /* Initialize game state */
     game_init(&gs);
 
-    printf("Plants vs Zombies MVP\n");
-    printf("Controls: Arrow keys=move cursor, Space=place plant, D=remove plant, ESC=quit\n");
+    printf("Plants vs Zombies v3\n");
+    if (input_is_gamepad()) {
+        printf("Controls (gamepad): D-pad=move, A=place, B=remove, LB/RB=cycle plant, Start=quit\n");
+    } else {
+        printf("Controls (keyboard): Arrows=move, Space=place, D=remove, [/]=cycle plant, ESC=quit\n");
+    }
     printf("Sun: %d | Plant cost: %d\n\n", gs.sun, PLANT_COST);
 
     /* Main game loop */
