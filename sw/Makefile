@@ -21,8 +21,8 @@ clean:
 	${RM} pvz test_shapes test_input test_input_devices test_game
 
 # Main game executable
-pvz: main.c game.c render.c input.c pvz.h game.h render.h input.h
-	gcc -Wall -O2 -o pvz main.c game.c render.c input.c -lpthread
+pvz: main.c game.c render.c input.c audio.c pvz.h game.h render.h input.h audio.h pvz_audio_driver.h
+	gcc -Wall -O2 -o pvz main.c game.c render.c input.c audio.c -lpthread
 
 # Test programs
 test_shapes: test/test_shapes.c pvz.h

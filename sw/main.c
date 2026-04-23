@@ -19,6 +19,7 @@
 #include "game.h"
 #include "input.h"
 #include "render.h"
+#include "audio.h"
 
 #define FRAME_USEC 16667  /* ~60 fps */
 
@@ -32,7 +33,7 @@ static long long get_time_usec(void)
     return (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
 }
 
-static void process_input(game_state_t *gs)
+static void process_input(game_state_t *gs, audio_events_t *ev)
 {
     input_action_t action;
 
@@ -51,7 +52,7 @@ static void process_input(game_state_t *gs)
             if (gs->cursor_col < GRID_COLS - 1) gs->cursor_col++;
             break;
         case INPUT_PLACE:
-            game_place_plant(gs, NULL);
+            game_place_plant(gs, ev);
             break;
         case INPUT_DIG:
             game_remove_plant(gs);
@@ -99,6 +100,11 @@ int main(int argc, char *argv[])
     /* Initialize renderer */
     render_init(pvz_fd);
 
+    /* Initialize audio (non-fatal: keep playing silent on failure) */
+    if (audio_init() < 0) {
+        fprintf(stderr, "audio_init failed, continuing without audio\n");
+    }
+
     /* Initialize game state */
     game_init(&gs);
 
@@ -110,21 +116,46 @@ int main(int argc, char *argv[])
     }
     printf("Sun: %d | Plant cost: %d\n\n", gs.sun, PLANT_COST);
 
+    /* Start BGM immediately (game begins in STATE_PLAYING) */
+    audio_bgm_start();
+
     /* Main game loop */
     long long frame_start;
+    int last_state = STATE_PLAYING;
 
     while (gs.state >= 0) {
         frame_start = get_time_usec();
 
-        /* 1. Process input */
-        process_input(&gs);
+        audio_events_t ev = { .flags = 0 };
+
+        /* 1. Process input (may emit PLANT_PLACE) */
+        process_input(&gs, &ev);
         if (gs.state < 0)
             break;
 
-        /* 2. Update game logic */
-        game_update(&gs, NULL);
+        /* 2. Update game logic (may emit other in-game events) */
+        game_update(&gs, &ev);
 
-        /* 3. Render to FPGA */
+        /* 3. BGM state-edge tracker */
+        if (gs.state != last_state) {
+            if (gs.state == STATE_PLAYING) {
+                audio_bgm_start();
+            } else if (last_state == STATE_PLAYING) {
+                audio_bgm_stop();
+            }
+            if (last_state == STATE_PLAYING && gs.state == STATE_LOSE)
+                audio_play_sfx(PVZ_SFX_GAME_OVER);
+            if (last_state == STATE_PLAYING && gs.state == STATE_WIN)
+                audio_play_sfx(PVZ_SFX_VICTORY);
+            last_state = gs.state;
+        }
+
+        /* 4. Fan-out in-game SFX events (cues 1..6) */
+        for (pvz_sfx_cue_t c = PVZ_SFX_PEA_FIRE; c <= PVZ_SFX_WAVE_START; c++) {
+            if (ev.flags & PVZ_AUDIO_EVENT(c)) audio_play_sfx(c);
+        }
+
+        /* 5. Render to FPGA */
         render_frame(&gs);
 
         /* Print status periodically */
@@ -149,13 +180,14 @@ int main(int argc, char *argv[])
             break;
         }
 
-        /* 4. Frame timing: sleep for remainder of frame */
+        /* 6. Frame timing: sleep for remainder of frame */
         long long elapsed = get_time_usec() - frame_start;
         if (elapsed < FRAME_USEC)
             usleep(FRAME_USEC - elapsed);
     }
 
     printf("\nCleaning up...\n");
+    audio_close();
     input_close();
     close(pvz_fd);
     return 0;
