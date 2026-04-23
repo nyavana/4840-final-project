@@ -1,5 +1,5 @@
 /*
- * 48-entry shape table with shadow/active double-buffering
+ * 64-entry shape table with shadow/active double-buffering
  *
  * Each entry stores:
  *   type    [1:0]  - 0=rectangle, 1=circle, 2=seven-segment digit
@@ -25,7 +25,7 @@ module shape_table(
 
     // CPU write interface
     input  logic        addr_wr,     // write to SHAPE_ADDR register
-    input  logic [5:0]  addr_data,   // shape index 0-47
+    input  logic [5:0]  addr_data,   // shape index 0-63
 
     input  logic        data0_wr,    // write to SHAPE_DATA0 register
     input  logic [31:0] data0,
@@ -59,8 +59,8 @@ module shape_table(
     // Shadow and active tables
     // Pack each entry as {color[7:0], h[8:0], w[8:0], y[8:0], x[9:0], visible, type[1:0]}
     // Total = 8+9+9+9+10+1+2 = 48 bits
-    logic [47:0] shadow [0:47];
-    logic [47:0] active [0:47];
+    logic [47:0] shadow [0:63];
+    logic [47:0] active [0:63];
 
     // CPU writes: stage address, data0, data1, then commit to shadow
     always_ff @(posedge clk or posedge reset)
@@ -80,7 +80,7 @@ module shape_table(
     // Commit: pack staged data into shadow table
     always_ff @(posedge clk or posedge reset)
         if (reset) begin
-            for (int i = 0; i < 48; i++)
+            for (int i = 0; i < 64; i++)
                 shadow[i] <= 48'd0;
         end else if (commit_wr) begin
             // DATA0 bit fields: [1:0]=type, [2]=visible, [12:3]=x, [21:13]=y
@@ -99,10 +99,10 @@ module shape_table(
     // Vsync latch: shadow -> active
     always_ff @(posedge clk or posedge reset)
         if (reset) begin
-            for (int i = 0; i < 48; i++)
+            for (int i = 0; i < 64; i++)
                 active[i] <= 48'd0;
         end else if (vsync_latch) begin
-            for (int i = 0; i < 48; i++)
+            for (int i = 0; i < 64; i++)
                 active[i] <= shadow[i];
         end
 

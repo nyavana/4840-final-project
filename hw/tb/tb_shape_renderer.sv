@@ -45,9 +45,11 @@ module tb_shape_renderer;
     // Simple background: always return color 1
     assign bg_color = 8'd1;
 
-    // Shape table simulation: one visible rectangle at shape 0
-    // at (100, 100) size 50x50, color 5
-    // All other shapes: invisible
+    // Shape table simulation:
+    //   index 0  -> visible rectangle at (100, 100) size 50x50, color 5
+    //   index 40 -> visible rectangle at (200, 100) size 60x60, color 7  (lower z)
+    //   index 63 -> visible rectangle at (240, 100) size 60x60, color 9  (higher z)
+    //     40 and 63 overlap in x range [240, 260) on scanline 120
     always_comb begin
         shape_type    = 2'd0;
         shape_visible = 1'b0;
@@ -58,13 +60,29 @@ module tb_shape_renderer;
         shape_color   = 8'd0;
 
         if (shape_index == 6'd0) begin
-            shape_type    = 2'd0; // rectangle
+            shape_type    = 2'd0;
             shape_visible = 1'b1;
             shape_x       = 10'd100;
             shape_y       = 9'd100;
             shape_w       = 9'd50;
             shape_h       = 9'd50;
             shape_color   = 8'd5;
+        end else if (shape_index == 6'd40) begin
+            shape_type    = 2'd0;
+            shape_visible = 1'b1;
+            shape_x       = 10'd200;
+            shape_y       = 9'd100;
+            shape_w       = 9'd60;
+            shape_h       = 9'd60;
+            shape_color   = 8'd7;
+        end else if (shape_index == 6'd63) begin
+            shape_type    = 2'd0;
+            shape_visible = 1'b1;
+            shape_x       = 10'd240;
+            shape_y       = 9'd100;
+            shape_w       = 9'd60;
+            shape_h       = 9'd60;
+            shape_color   = 8'd9;
         end
     end
 
@@ -135,6 +153,33 @@ module tb_shape_renderer;
         end else begin
             $display("PASS: Background pixel 50 correct (color 1)");
         end
+
+        // Shape 40 (color 7) and shape 63 (color 9) overlap in x=[240, 260).
+        // Painter's algorithm: index 63 > index 40, so color 9 must win.
+        for (int i = 240; i < 260; i++) begin
+            if (pixel_result[i] != 8'd9) begin
+                $display("FAIL: Overlap pixel %0d expected 9, got %0d",
+                         i, pixel_result[i]);
+                errors++;
+            end
+        end
+        // Non-overlapping portion of shape 40: x in [200, 240) should be color 7
+        for (int i = 200; i < 240; i++) begin
+            if (pixel_result[i] != 8'd7) begin
+                $display("FAIL: Shape-40 pixel %0d expected 7, got %0d",
+                         i, pixel_result[i]);
+                errors++;
+            end
+        end
+        // Non-overlapping portion of shape 63: x in [260, 300) should be color 9
+        for (int i = 260; i < 300; i++) begin
+            if (pixel_result[i] != 8'd9) begin
+                $display("FAIL: Shape-63 pixel %0d expected 9, got %0d",
+                         i, pixel_result[i]);
+                errors++;
+            end
+        end
+        $display("PASS: High-index shapes 40/63 z-ordered correctly");
 
         // ---- Test 2: Scanline 50 (above rectangle -> bg only) ----
         do_render(10'd50);

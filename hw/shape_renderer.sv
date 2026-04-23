@@ -1,7 +1,7 @@
 /*
  * Scanline-based shape renderer
  *
- * For each scanline, iterates through all 48 shape table entries and
+ * For each scanline, iterates through all 64 shape table entries and
  * writes pixels to the linebuffer draw port. Later shapes overwrite
  * earlier ones (painter's algorithm / z-order by index).
  *
@@ -14,7 +14,7 @@
  *
  * Operation:
  *   1. On render_start pulse, begin background fill from bg_grid
- *   2. After background, iterate shapes 0-47
+ *   2. After background, iterate shapes 0-63
  *   3. Assert render_done when complete
  *
  * The renderer must complete within ~1600 pixel clocks per scanline.
@@ -200,7 +200,7 @@ module shape_renderer(
                         scanline < {1'b0, s_y} ||
                         scanline >= ({1'b0, s_y} + {1'b0, s_h})) begin
                         // Skip this shape
-                        if (cur_shape == 6'd47) begin
+                        if (cur_shape == 6'd63) begin
                             state <= S_DONE;
                         end else begin
                             cur_shape   <= cur_shape + 6'd1;
@@ -236,7 +236,7 @@ module shape_renderer(
                             draw_x              <= draw_x + 10'd1;
                         end else if (!sprite_pending) begin
                             // All pixels issued AND flushed: move on
-                            if (cur_shape == 6'd47) begin
+                            if (cur_shape == 6'd63) begin
                                 state <= S_DONE;
                             end else begin
                                 cur_shape   <= cur_shape + 6'd1;
@@ -247,7 +247,7 @@ module shape_renderer(
                         // else: last fetch being flushed this cycle, stay one more
                     end else if (draw_x >= s_x + {1'b0, s_w} || draw_x >= 10'd640) begin
                         // Done with this shape
-                        if (cur_shape == 6'd47) begin
+                        if (cur_shape == 6'd63) begin
                             state <= S_DONE;
                         end else begin
                             cur_shape   <= cur_shape + 6'd1;

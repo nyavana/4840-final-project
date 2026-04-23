@@ -36,7 +36,7 @@ typedef struct {
 
 /* Shape write argument */
 typedef struct {
-    unsigned char index;   /* shape table index 0-47 */
+    unsigned char index;   /* shape table index 0-63 */
     unsigned char type;    /* SHAPE_RECT, SHAPE_CIRCLE, SHAPE_DIGIT */
     unsigned char visible; /* 1=visible, 0=hidden */
     unsigned short x;      /* x position 0-639 */
