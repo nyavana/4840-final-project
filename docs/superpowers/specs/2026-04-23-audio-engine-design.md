@@ -1,7 +1,7 @@
 # Audio Engine — Design Document
 
 - **Date:** 2026-04-23
-- **Feature branch:** `audio-engine` (off `v3-controller-and-roster`)
+- **Feature branch:** `v3-audio-engine` (off `v3-controller-and-roster`)
 - **Status:** Draft — awaiting user review before implementation plan.
 
 ---
@@ -583,8 +583,8 @@ voice round-robin working → no dropped sounds).
 
 ### Feature worktree
 
-All work happens in `/homes/user/stud/spring26/cy2822/4840-final/worktrees/audio-engine`,
-branch `audio-engine`, branched from `v3-controller-and-roster`. Primary
+All work happens in `/homes/user/stud/spring26/cy2822/4840-final/worktrees/v3-audio-engine`,
+branch `v3-audio-engine`, branched from `v3-controller-and-roster`. Primary
 `pvz-fpga` tree is not touched.
 
 ### Subagent decomposition
