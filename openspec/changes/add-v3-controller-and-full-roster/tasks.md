@@ -16,20 +16,20 @@
 
 ## 3. Data model and game logic (Phase B, software)
 
-- [ ] 3.1 Add `plant_type` and `zombie_type` enums to `sw/game.h`; add `type` field to `zombie_t`; add `selected_plant`, `wave_entry_t wave[10]`, and `wave_index` to `game_state_t`; add `SUNFLOWER_PRODUCE_COOLDOWN 600` constant; bump `TOTAL_ZOMBIES` to 10
-- [ ] 3.2 In `sw/game.c` add a static const per-plant table (cost, max HP) and per-zombie-type max HP table
-- [ ] 3.3 Rename `update_firing` to `update_plants` and branch on plant type (peashooter → fire, sunflower → +25 sun, wall-nut → no-op)
-- [ ] 3.4 In `game_place_plant`, read `gs->selected_plant` and look up cost + HP from the table rather than hardcoding
-- [ ] 3.5 Replace `update_spawning` random loop with a wave-table walker; add a `WAVE_TEMPLATE[10]` constant and a `game_init`-time jitter pass using `rand()`
-- [ ] 3.6 Extend `sw/test/test_game.c` with these cases:
+- [x] 3.1 Add `plant_type` and `zombie_type` enums to `sw/game.h`; add `type` field to `zombie_t`; add `selected_plant`, `wave_entry_t wave[10]`, and `wave_index` to `game_state_t`; add `SUNFLOWER_PRODUCE_COOLDOWN 600` constant; bump `TOTAL_ZOMBIES` to 10
+- [x] 3.2 In `sw/game.c` add a static const per-plant table (cost, max HP) and per-zombie-type max HP table
+- [x] 3.3 Rename `update_firing` to `update_plants` and branch on plant type (peashooter → fire, sunflower → +25 sun, wall-nut → no-op)
+- [x] 3.4 In `game_place_plant`, read `gs->selected_plant` and look up cost + HP from the table rather than hardcoding
+- [x] 3.5 Replace `update_spawning` random loop with a wave-table walker; add a `WAVE_TEMPLATE[10]` constant and a `game_init`-time jitter pass using `rand()`
+- [x] 3.6 Extend `sw/test/test_game.c` with these cases:
   - sunflower produces +25 sun exactly every 600 frames
   - sunflower does not fire peas; wall-nut does not fire peas
   - conehead dies after exactly 6 peas; buckethead dies after exactly 12
   - wave-table determinism under `srand(42)` — both wave arrays match
   - `selected_plant` cycling wraps 0↔2 via the helpers used in `main.c`
   - `game_place_plant` respects `selected_plant` for each of the three plant types
-- [ ] 3.7 **Gate**: `cd sw && make test_game && ./test_game` — all tests green. No on-board work in this phase.
-- [ ] 3.8 **Commit**: `v3: plant & zombie type data model + wave table`
+- [x] 3.7 **Gate**: `cd sw && make test_game && ./test_game` — all tests green. No on-board work in this phase.
+- [x] 3.8 **Commit**: `v3: plant & zombie type data model + wave table`
 
 ## 4. Rendering updates (Phase C, software + on-board)
 
