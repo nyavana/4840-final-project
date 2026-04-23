@@ -19,6 +19,7 @@ import struct
 import sys
 import wave
 from pathlib import Path
+from typing import List
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent    # hw/audio
@@ -29,7 +30,7 @@ EXPECTED_WIDTH   = 2           # 16-bit
 EXPECTED_CHANNELS = 1
 
 
-def read_pcm16_mono(path: Path) -> list[int]:
+def read_pcm16_mono(path: Path) -> List[int]:
     """Read a WAV file; return a list of signed int16 samples. Validates format."""
     with wave.open(str(path), "rb") as w:
         if w.getframerate() != EXPECTED_RATE:
@@ -43,7 +44,7 @@ def read_pcm16_mono(path: Path) -> list[int]:
     return list(struct.unpack(f"<{n}h", raw))
 
 
-def write_mem(path: Path, samples: list[int]) -> None:
+def write_mem(path: Path, samples: List[int]) -> None:
     """Write one 16-bit hex per line, two's-complement."""
     with open(path, "w") as f:
         for s in samples:
@@ -70,9 +71,9 @@ def main() -> None:
     write_mem(HW_DIR / "bgm_rom.mem", bgm_samples)
 
     # --- SFX ---
-    sfx_samples: list[int] = []
-    sfx_start: list[int] = [0] * 9    # 1-indexed, index 0 unused
-    sfx_end:   list[int] = [0] * 9
+    sfx_samples: List[int] = []
+    sfx_start: List[int] = [0] * 9    # 1-indexed, index 0 unused
+    sfx_end: List[int] = [0] * 9
 
     # Sort cues by cue_id to pack deterministically
     cues = sorted(manifest["sfx"], key=lambda c: c["cue_id"])
