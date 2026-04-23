@@ -247,7 +247,15 @@ module soc_system_top(
         .pvz_top_0_vga_hs             ( VGA_HS ),
         .pvz_top_0_vga_vs             ( VGA_VS ),
         .pvz_top_0_vga_blank_n        ( VGA_BLANK_N ),
-        .pvz_top_0_vga_sync_n         ( VGA_SYNC_N )
+        .pvz_top_0_vga_sync_n         ( VGA_SYNC_N ),
+
+        // WM8731 audio codec conduits (added for pvz_audio)
+        .audio_pll_0_audio_clk_clk                         ( AUD_XCK ),
+        .audio_0_external_interface_BCLK                   ( AUD_BCLK ),
+        .audio_0_external_interface_DACDAT                 ( AUD_DACDAT ),
+        .audio_0_external_interface_DACLRCK                ( AUD_DACLRCK ),
+        .audio_and_video_config_0_external_interface_SDAT  ( FPGA_I2C_SDAT ),
+        .audio_and_video_config_0_external_interface_SCLK  ( FPGA_I2C_SCLK )
     );
 
     // Quiet "no driver" warnings for unused output pins
@@ -256,10 +264,7 @@ module soc_system_top(
     assign ADC_SCLK = SW[0];
 
     assign AUD_ADCLRCK = SW[1] ? SW[0] : 1'bZ;
-    assign AUD_BCLK = SW[1] ? SW[0] : 1'bZ;
-    assign AUD_DACDAT = SW[0];
-    assign AUD_DACLRCK = SW[1] ? SW[0] : 1'bZ;
-    assign AUD_XCK = SW[0];
+    // AUD_BCLK, AUD_DACDAT, AUD_DACLRCK, AUD_XCK now driven by soc_system0's audio conduits
 
     assign DRAM_ADDR = {13{SW[0]}};
     assign DRAM_BA = {2{SW[0]}};
@@ -269,8 +274,7 @@ module soc_system_top(
 
     assign FAN_CTRL = SW[0];
 
-    assign FPGA_I2C_SCLK = SW[0];
-    assign FPGA_I2C_SDAT = SW[1] ? SW[0] : 1'bZ;
+    // FPGA_I2C_SCLK and FPGA_I2C_SDAT now driven by soc_system0's audio_and_video_config_0 conduits
 
     assign GPIO_0 = SW[1] ? {36{SW[0]}} : {36{1'bZ}};
     assign GPIO_1 = SW[1] ? {36{SW[0]}} : {36{1'bZ}};
