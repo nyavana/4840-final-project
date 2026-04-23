@@ -36,3 +36,15 @@ Deviations from the plan and things that need human follow-up.
 - **Detail**: The DE1-SoC board is not accessible from this session. The audio path has been verified in simulation (ModelSim testbenches pass) and Qsys generation succeeds, but the full `.rbf` has not been run on the board and `test_audio` has not been exercised against a live WM8731 codec.
 - **Proposed fix**: After full Quartus build, deploy to board via `deploy.sh install && deploy.sh run`. Listen for BGM during `STATE_PLAYING`. Run `deploy.sh test test_audio` for the standalone audio smoke test, and `deploy.sh test test_audio --sfx N` for each cue.
 - **Status**: open
+
+## Task 7.1 test-before-ship gate results (2026-04-23)
+
+All simulation-side tests pass on this workstation:
+- **ModelSim testbenches (9/9 pass):** tb_mixer, tb_voice_bgm, tb_voice_sfx, tb_pvz_audio (audio) + tb_bg_grid, tb_linebuffer, tb_shape_renderer, tb_vga_counters, tb_pvz_top (existing).
+- **Host test suite:** test_game reports `Results: 145 passed, 0 failed`.
+- **Host build of pvz:** x86-64 ELF produced cleanly.
+- **Full Quartus compilation:** 0 errors, 421 warnings. `.sof`, `.rbf` generated; `.dtb` contains `csee4840,pvz_audio-1.0` at address `0x100001000` (CPU byte `0xff201000`). Block memory utilisation 78% (target was ≤85%).
+
+Gaps requiring a workstation / board:
+- ARM cross-compile of `pvz_audio_driver.ko` (see above).
+- On-board deployment smoke test (see above).
