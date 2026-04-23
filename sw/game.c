@@ -91,8 +91,9 @@ void game_init(game_state_t *gs)
     }
 }
 
-int game_place_plant(game_state_t *gs)
+int game_place_plant(game_state_t *gs, audio_events_t *ev)
 {
+    (void)ev;  /* Task 4.4 will emit into ev */
     int r = gs->cursor_row;
     int c = gs->cursor_col;
 
@@ -385,8 +386,9 @@ static void check_win(game_state_t *gs)
     gs->state = STATE_WIN;
 }
 
-void game_update(game_state_t *gs)
+void game_update(game_state_t *gs, audio_events_t *ev)
 {
+    (void)ev;  /* Task 4.4 will emit into ev */
     if (gs->state != STATE_PLAYING)
         return;
 

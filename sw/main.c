@@ -51,7 +51,7 @@ static void process_input(game_state_t *gs)
             if (gs->cursor_col < GRID_COLS - 1) gs->cursor_col++;
             break;
         case INPUT_PLACE:
-            game_place_plant(gs);
+            game_place_plant(gs, NULL);
             break;
         case INPUT_DIG:
             game_remove_plant(gs);
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
             break;
 
         /* 2. Update game logic */
-        game_update(&gs);
+        game_update(&gs, NULL);
 
         /* 3. Render to FPGA */
         render_frame(&gs);

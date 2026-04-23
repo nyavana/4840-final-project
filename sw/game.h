@@ -1,6 +1,8 @@
 #ifndef _GAME_H
 #define _GAME_H
 
+#include <stdint.h>
+
 /* Grid dimensions */
 #define GRID_ROWS     4
 #define GRID_COLS     8
@@ -137,17 +139,25 @@ int zombie_max_hp(int type);
  */
 void game_init(game_state_t *gs);
 
+/* Audio events emitted by game_update() and game_place_plant(). Caller zeroes
+ * `flags` once per frame before calling either. Functions OR bits into
+ * `flags` — never overwrite wholesale. Safe to pass NULL if audio isn't
+ * needed (e.g. host tests that don't exercise the audio path). */
+typedef struct {
+    uint32_t flags;
+} audio_events_t;
+
 /*
  * Process one frame of game logic.
  * Call after input has been processed.
  */
-void game_update(game_state_t *gs);
+void game_update(game_state_t *gs, audio_events_t *ev);
 
 /*
  * Attempt to place the currently selected plant at the cursor position.
  * Returns 1 on success, 0 if blocked.
  */
-int game_place_plant(game_state_t *gs);
+int game_place_plant(game_state_t *gs, audio_events_t *ev);
 
 /*
  * Remove the plant at the cursor position.

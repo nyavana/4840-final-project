@@ -63,7 +63,7 @@ static void test_place_plant(void)
     gs.cursor_row = 0;
     gs.cursor_col = 0;
     gs.selected_plant = 0; /* Peashooter */
-    int result = game_place_plant(&gs);
+    int result = game_place_plant(&gs, NULL);
 
     ASSERT(result == 1, "plant placement should succeed");
     ASSERT(gs.grid[0][0].type == PLANT_PEASHOOTER, "cell should have peashooter");
@@ -73,13 +73,13 @@ static void test_place_plant(void)
 
     /* Try to place another plant on same cell */
     gs.sun = 100;
-    result = game_place_plant(&gs);
+    result = game_place_plant(&gs, NULL);
     ASSERT(result == 0, "placing on occupied cell should fail");
 
     /* Try to place with insufficient sun */
     gs.cursor_col = 1;
     gs.sun = 10;
-    result = game_place_plant(&gs);
+    result = game_place_plant(&gs, NULL);
     ASSERT(result == 0, "placing with insufficient sun should fail");
 
     printf("  test_place_plant: OK\n");
@@ -94,21 +94,21 @@ static void test_place_selects_type(void)
 
     gs.cursor_row = 0; gs.cursor_col = 0;
     gs.selected_plant = 0;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     ASSERT(gs.grid[0][0].type == PLANT_PEASHOOTER,
            "selected_plant=0 places a peashooter");
     ASSERT(gs.grid[0][0].hp == 3, "peashooter HP = 3");
 
     gs.cursor_col = 1;
     gs.selected_plant = 1;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     ASSERT(gs.grid[0][1].type == PLANT_SUNFLOWER,
            "selected_plant=1 places a sunflower");
     ASSERT(gs.grid[0][1].hp == 2, "sunflower HP = 2");
 
     gs.cursor_col = 2;
     gs.selected_plant = 2;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     ASSERT(gs.grid[0][2].type == PLANT_WALLNUT,
            "selected_plant=2 places a wall-nut");
     ASSERT(gs.grid[0][2].hp == 8, "wall-nut HP = 8");
@@ -125,7 +125,7 @@ static void test_remove_plant(void)
     gs.cursor_row = 1;
     gs.cursor_col = 2;
     gs.selected_plant = 0;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     int result = game_remove_plant(&gs);
 
     ASSERT(result == 1, "removal should succeed");
@@ -146,7 +146,7 @@ static void test_sun_economy(void)
     int initial_sun = gs.sun;
     /* Run frames until passive sun increments */
     for (int i = 0; i < SUN_INTERVAL + 1; i++)
-        game_update(&gs);
+        game_update(&gs, NULL);
 
     ASSERT(gs.sun == initial_sun + SUN_INCREMENT,
            "sun should increase by 25 after 8 seconds");
@@ -164,7 +164,7 @@ static void test_sunflower_produces_sun(void)
     /* Place a sunflower */
     gs.cursor_row = 0; gs.cursor_col = 0;
     gs.selected_plant = 1;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     int sun_after_place = gs.sun;
 
     /* SUNFLOWER_PRODUCE_COOLDOWN is 600.  After the passive drip (at
@@ -174,7 +174,7 @@ static void test_sunflower_produces_sun(void)
      * also fires every SUN_INTERVAL = 480 frames; account for both. */
 
     /* Snapshot sun after ticking once to check counter initialised. */
-    game_update(&gs); /* frame 1: sunflower timer goes 600 -> 599 */
+    game_update(&gs, NULL); /* frame 1: sunflower timer goes 600 -> 599 */
     ASSERT(gs.grid[0][0].fire_cooldown == SUNFLOWER_PRODUCE_COOLDOWN - 1,
            "sunflower timer decrements once per frame");
 
@@ -183,7 +183,7 @@ static void test_sunflower_produces_sun(void)
      * (frame 600) — that's one drip at frame 480 => +25. */
     int before = sun_after_place;
     while (gs.frame_count < SUNFLOWER_PRODUCE_COOLDOWN)
-        game_update(&gs);
+        game_update(&gs, NULL);
 
     /* After 600 frames: one drip (+25) and one sunflower produce (+25). */
     ASSERT(gs.sun == before + 2 * SUN_INCREMENT,
@@ -194,7 +194,7 @@ static void test_sunflower_produces_sun(void)
      * drip reset at 480 and interval is 480). */
     before = gs.sun;
     while (gs.frame_count < 2 * SUNFLOWER_PRODUCE_COOLDOWN)
-        game_update(&gs);
+        game_update(&gs, NULL);
     ASSERT(gs.sun == before + 2 * SUN_INCREMENT,
            "sunflower + passive drip produced +50 more after another 600 frames");
 
@@ -211,10 +211,10 @@ static void test_sunflower_and_wallnut_do_not_fire(void)
     /* Sunflower at (0,0), wall-nut at (1,0) */
     gs.cursor_row = 0; gs.cursor_col = 0;
     gs.selected_plant = 1;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
     gs.cursor_row = 1; gs.cursor_col = 0;
     gs.selected_plant = 2;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
 
     /* Put a zombie in each row so that a peashooter would fire, and
      * confirm no peas are spawned. */
@@ -231,7 +231,7 @@ static void test_sunflower_and_wallnut_do_not_fire(void)
 
     /* Run plenty of frames */
     for (int i = 0; i < SUNFLOWER_PRODUCE_COOLDOWN + 120; i++)
-        game_update(&gs);
+        game_update(&gs, NULL);
 
     for (int i = 0; i < MAX_PROJECTILES; i++)
         ASSERT(gs.projectiles[i].active == 0,
@@ -250,7 +250,7 @@ static void test_peashooter_fires(void)
     /* Peashooter at (0,0), zombie in row 0 */
     gs.cursor_row = 0; gs.cursor_col = 0;
     gs.selected_plant = 0;
-    game_place_plant(&gs);
+    game_place_plant(&gs, NULL);
 
     gs.zombies[0].active = 1;
     gs.zombies[0].type = ZOMBIE_BASIC;
@@ -260,7 +260,7 @@ static void test_peashooter_fires(void)
 
     /* Run exactly PEASHOOTER_FIRE_COOLDOWN frames; a pea should spawn. */
     for (int i = 0; i < PEASHOOTER_FIRE_COOLDOWN; i++)
-        game_update(&gs);
+        game_update(&gs, NULL);
 
     int fired = 0;
     for (int i = 0; i < MAX_PROJECTILES; i++)
@@ -288,7 +288,7 @@ static void test_conehead_takes_six_hits(void)
         gs.projectiles[0].active = 1;
         gs.projectiles[0].row = 0;
         gs.projectiles[0].x_pixel = 300;
-        game_update(&gs);
+        game_update(&gs, NULL);
     }
     ASSERT(gs.zombies[0].active == 1, "conehead alive after 5 peas");
 
@@ -296,7 +296,7 @@ static void test_conehead_takes_six_hits(void)
     gs.projectiles[0].active = 1;
     gs.projectiles[0].row = 0;
     gs.projectiles[0].x_pixel = 300;
-    game_update(&gs);
+    game_update(&gs, NULL);
     ASSERT(gs.zombies[0].active == 0, "conehead dies after 6 peas");
 
     printf("  test_conehead_takes_six_hits: OK\n");
@@ -318,14 +318,14 @@ static void test_buckethead_takes_twelve_hits(void)
         gs.projectiles[0].active = 1;
         gs.projectiles[0].row = 0;
         gs.projectiles[0].x_pixel = 300;
-        game_update(&gs);
+        game_update(&gs, NULL);
     }
     ASSERT(gs.zombies[0].active == 1, "buckethead alive after 11 peas");
 
     gs.projectiles[0].active = 1;
     gs.projectiles[0].row = 0;
     gs.projectiles[0].x_pixel = 300;
-    game_update(&gs);
+    game_update(&gs, NULL);
     ASSERT(gs.zombies[0].active == 0, "buckethead dies after 12 peas");
 
     printf("  test_buckethead_takes_twelve_hits: OK\n");
@@ -403,7 +403,7 @@ static void test_collision(void)
 
     gs.zombies_spawned = 1;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.zombies[0].hp == ZOMBIE_HP - PEA_DAMAGE,
            "zombie HP should decrease by 1");
@@ -432,7 +432,7 @@ static void test_zombie_death(void)
 
     gs.zombies_spawned = 1;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.zombies[0].active == 0, "zombie should be dead");
 
@@ -454,7 +454,7 @@ static void test_lose_condition(void)
 
     gs.zombies_spawned = 1;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.state == STATE_LOSE, "game should be in LOSE state");
 
@@ -472,7 +472,7 @@ static void test_win_condition(void)
     for (int i = 0; i < MAX_ZOMBIES; i++)
         gs.zombies[i].active = 0;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.state == STATE_WIN, "game should be in WIN state");
 
@@ -499,13 +499,13 @@ static void test_zombie_stops_at_plant(void)
 
     gs.zombies_spawned = TOTAL_ZOMBIES;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.zombies[0].eating == 1, "zombie should be eating the plant");
     ASSERT(gs.zombies[0].x_pixel == 240, "zombie should have stopped at x=240");
 
     int prev_x = gs.zombies[0].x_pixel;
-    game_update(&gs);
+    game_update(&gs, NULL);
     ASSERT(gs.zombies[0].x_pixel == prev_x,
            "zombie should not move while eating");
 
@@ -532,7 +532,7 @@ static void test_zombie_eats_and_destroys_plant(void)
 
     gs.zombies_spawned = TOTAL_ZOMBIES;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.grid[1][2].type == PLANT_NONE,
            "plant should be destroyed after last HP eaten");
@@ -561,7 +561,7 @@ static void test_zombie_resumes_after_eating(void)
 
     gs.zombies_spawned = TOTAL_ZOMBIES;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.zombies[0].eating == 0,
            "zombie should clear eating state when plant is gone");
@@ -593,14 +593,14 @@ static void test_two_zombies_eat_same_plant(void)
 
     gs.zombies_spawned = TOTAL_ZOMBIES;
 
-    game_update(&gs);
+    game_update(&gs, NULL);
 
     ASSERT(gs.grid[0][4].type == PLANT_NONE,
            "plant should be destroyed by two simultaneous bites");
     ASSERT(gs.zombies[1].eating == 0,
            "zombie 1 should stop eating after plant destroyed");
 
-    game_update(&gs);
+    game_update(&gs, NULL);
     ASSERT(gs.zombies[0].eating == 0,
            "zombie 0 should stop eating once it notices plant is gone");
 
@@ -619,7 +619,7 @@ static void test_wave_spawn_types(void)
     int first_type = gs.wave[0].type;
 
     for (int i = 0; i < first_spawn_frame + 5; i++)
-        game_update(&gs);
+        game_update(&gs, NULL);
 
     /* Find the spawned zombie */
     int found = -1;
