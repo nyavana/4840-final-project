@@ -1,8 +1,48 @@
 /*
- * DE1-SoC board top-level for Plants vs Zombies
+ * soc_system_top — DE1-SoC board-level wrapper for the PvZ project
  *
- * Instantiates the Platform Designer-generated soc_system and wires
- * VGA output pins, clocks, and HPS I/O to the board connectors.
+ * Thin pin adapter between the DE1-SoC's physical FPGA pins (named
+ * by Terasic's reference constraints) and `soc_system`, the Platform
+ * Designer-generated system that holds the HPS, the lightweight
+ * HPS-to-FPGA bridge, and our `pvz_top` peripheral.
+ *
+ * --- How it fits ---
+ * See the design document's "System Block Diagram" (Figure 1). The
+ * "FPGA fabric" box in that diagram is `soc_system` (instance
+ * `soc_system0` below); this file wires its conduit exports to the
+ * physical header pins outside the chip.
+ *
+ * --- Background ---
+ *
+ * 1. `soc_system` is generated, not hand-written. It lives in
+ *    `hw/soc_system.qsys` as a Platform Designer XML description, and
+ *    `make qsys` runs `qsys-generate` to emit SystemVerilog into
+ *    `hw/soc_system/`. That generated file is the actual module body
+ *    for the instantiation below. The QSF tells Quartus to compile
+ *    both this file and the generated files together.
+ *
+ * 2. Most of the port list is stubbed because we do not use those
+ *    peripherals. The board manual defines every pin, but the MVP
+ *    only lights up CLOCK_50, the VGA DAC, and the HPS DDR3 / SDIO /
+ *    USB / Ethernet / UART needed to boot Linux. Everything else is
+ *    tied off to a constant or tri-stated through SW[0]/SW[1] near
+ *    the bottom of the file to keep Quartus from emitting "no driver"
+ *    warnings.
+ *
+ * 3. Audio is not wired. AUD_* pins are stubbed for now. The design
+ *    document lists a future `audio_controller` module that will
+ *    drive the Wolfson codec through AUD_DACDAT/AUD_XCK/AUD_BCLK/
+ *    AUD_DACLRCK, plus the FPGA_I2C_* pins for codec register setup.
+ *
+ * 4. DDR3 stubbing. The `DRAM_*` signals are the FPGA-side SDRAM.
+ *    Not to be confused with `HPS_DDR3_*`, which is the HPS's own
+ *    DDR3 controller and IS wired. The design runs out of on-chip
+ *    M10K plus HPS DRAM; the FPGA SDRAM is unused for the MVP.
+ *
+ * 5. Pin naming matches the DE1-SoC User Manual and the project's
+ *    `soc_system.qsf` pin assignments. Renaming any port here without
+ *    updating the QSF will produce a fitter error.
+ *
  * Adapted from lab3 soc_system_top.sv.
  */
 
@@ -154,8 +194,15 @@ module soc_system_top(
     output       VGA_VS
 );
 
+    // Platform Designer-generated system. The port names here are
+    // auto-generated from the interface names in soc_system.qsys: the
+    // `pvz_top_0` instance's `vga` conduit, for example, becomes the
+    // `pvz_top_0_vga_*` ports, one per signal declared in the `vga`
+    // conduit interface of `pvz_top_hw.tcl`.
     soc_system soc_system0(
         .clk_clk                      ( CLOCK_50 ),
+        // Reset held high (deasserted). A real reset network would
+        // wire this to KEY[0] or the HPS-generated reset.
         .reset_reset_n                ( 1'b1 ),
 
         // HPS DDR3
@@ -250,7 +297,20 @@ module soc_system_top(
         .pvz_top_0_vga_sync_n         ( VGA_SYNC_N )
     );
 
-    // Quiet "no driver" warnings for unused output pins
+    // ---------------------------------------------------------------
+    // Stubs for unused board peripherals. Every top-level output has
+    // to drive something or Quartus emits "no driver" warnings that
+    // can mask real problems. We tie these to switches (SW[0]/SW[1])
+    // so the compiler keeps them in the design, with values driven by
+    // a human-reachable input instead of floating.
+    //
+    // AUD_*: stubbed until the planned `audio_controller` module
+    //        lands (see design document, "Audio Playback (Planned)").
+    // DRAM_*: the FPGA-side SDRAM is unused for the MVP.
+    // Other assignments: legacy board peripherals (PS/2, GPIO, HEX
+    //        displays, LEDs, IR, ADC, etc.) that the current design
+    //        does not need.
+    // ---------------------------------------------------------------
     assign ADC_CS_N = SW[1] ? SW[0] : 1'bZ;
     assign ADC_DIN = SW[0];
     assign ADC_SCLK = SW[0];

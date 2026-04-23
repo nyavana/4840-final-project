@@ -1,10 +1,37 @@
 /*
- * Testbench for bg_grid module
+ * tb_bg_grid.sv — unit testbench for bg_grid
  *
- * Verifies:
- *   - Cell color output for known coordinates
- *   - Shadow/active double-buffering
- *   - Out-of-game-area returns 0
+ * Role
+ *   Drives bg_grid with a handful of CPU writes and coordinate queries
+ *   and prints PASS/FAIL. Simulation-only; never synthesised.
+ *
+ * How it fits
+ *   Exercises the shadow/active double-buffer path from the bg_grid
+ *   header and design-document §System Architecture, plus the game-area
+ *   clipping from §Display Layout. Runs under Verilator or ModelSim as
+ *   part of the hardware testbench suite in §Testing and Verification.
+ *
+ * Background concepts
+ *   - Standard SystemVerilog TB idioms. A free-running clock comes from
+ *     `always #10 clk = ~clk;` (50 ns period with the 1ns/1ps timescale
+ *     below; the frequency is cosmetic for a unit TB like this). The
+ *     initial block holds reset high, drops it, then walks a
+ *     stimulus-then-check sequence using @(posedge clk) to step a cycle
+ *     at a time. $display writes to the simulator console and $finish
+ *     ends the simulation.
+ *   - `dut(.*);` port auto-connect. Every signal here shares a name with
+ *     a port on bg_grid, so SystemVerilog wires them up by name.
+ *   - errors accumulator. Every failed check bumps the counter; the
+ *     end-of-run summary prints either the count or "ALL TESTS PASSED".
+ *
+ * Test phases
+ *   1. Reset, idle the CPU write port.
+ *   2. Write two cells in the shadow copy (row 0 col 0 = 5, row 1 col 3 = 10).
+ *   3. Query before vsync_latch to confirm active is still zero (no tear).
+ *   4. Pulse vsync_latch, re-query the same two cells, expect the new
+ *      colors.
+ *   5. Query pixels above and below the game area to confirm both
+ *      clipping branches (py < 60 and py >= 420) return 0.
  */
 
 `timescale 1ns/1ps
@@ -35,6 +62,8 @@ module tb_bg_grid;
         reset = 0;
         @(posedge clk);
 
+        // Phase 2: two shadow writes. Only shadow[] gets updated here;
+        // active[] is still all zeros because no vsync_latch has fired.
         // Write color 5 to cell (row=0, col=0)
         wr_en = 1; wr_row = 2'd0; wr_col = 3'd0; wr_color = 8'd5;
         @(posedge clk);
@@ -44,6 +73,9 @@ module tb_bg_grid;
         wr_en = 0;
         @(posedge clk);
 
+        // Phase 3: pre-latch read. active[] is the render-visible copy
+        // and must still show 0 at the cell we just wrote, to prove the
+        // CPU write did not leak through mid-frame.
         // Before vsync latch, active should still be 0
         px = 10'd40; py = 10'd100; // row=0, col=0 -> cell (0,0)
         @(posedge clk);
@@ -54,6 +86,8 @@ module tb_bg_grid;
             $display("PASS: Before latch, active is 0");
         end
 
+        // Phase 4: pulse vsync_latch for one cycle so active[] picks up
+        // the shadow writes, then re-query.
         // Latch
         vsync_latch = 1;
         @(posedge clk);
@@ -80,6 +114,9 @@ module tb_bg_grid;
             $display("PASS: Cell (1,3) color correct");
         end
 
+        // Phase 5: clipping checks. Both py < 60 (above the game area)
+        // and py >= 420 (below it) must return 0 regardless of what
+        // active[] holds.
         // Check outside game area (y < 60)
         px = 10'd100; py = 10'd30;
         @(posedge clk);

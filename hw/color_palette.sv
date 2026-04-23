@@ -18,6 +18,30 @@
  *  10    White         FF   FF   FF   HUD digits
  *  11    Gray          80   80   80   HUD background
  *  12    Orange        FF   A5   00   Sun indicator
+ *
+ * -------------------------------------------------------------------------
+ * How it fits
+ * -------------------------------------------------------------------------
+ * Everything upstream works in 8-bit palette indices: bg_grid entries,
+ * shape-table `color` fields, sprite_rom bytes, and the line-buffer
+ * contents. This LUT is the last stage before the VGA DAC, converting
+ * the index read from the display line buffer into the 24-bit RGB the
+ * DAC samples. See design-document §Color Palette (Table 13) and the
+ * scanline-dataflow figure in §Scanline Rendering Sequence.
+ *
+ * -------------------------------------------------------------------------
+ * Implementation notes
+ * -------------------------------------------------------------------------
+ * Pure combinational case statement. No BRAM; Quartus should infer this
+ * as a small chunk of ALM-based logic (see design-document §On-Chip SRAM
+ * Summary, which lists this block as "Combinational LUT (no BRAM)").
+ * Indices 0..12 carry defined colors; every other index falls through to
+ * the black default, so upstream code can safely leave unused table slots
+ * at 0x00.
+ *
+ * The sprite-ROM transparency sentinel 0xFF would resolve to black here,
+ * but the renderer suppresses the line-buffer write on 0xFF, so that
+ * value should never reach this LUT in practice.
  */
 
 module color_palette(

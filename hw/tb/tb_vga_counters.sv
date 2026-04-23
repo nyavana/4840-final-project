@@ -1,12 +1,46 @@
 /*
- * Testbench for vga_counters module
+ * tb_vga_counters.sv — unit testbench for the VGA timing generator
  *
- * Verifies:
- *   - hcount cycles 0-1599
- *   - vcount cycles 0-524
- *   - VGA_HS timing (active low during sync pulse)
- *   - VGA_VS timing (active low during sync pulse)
- *   - VGA_BLANK_n is high during active area only
+ * Role
+ *   Runs vga_counters for two full frames off a 50 MHz clock and spot-
+ *   checks that hcount/vcount wrap at the right values, that VGA_BLANK_n
+ *   tracks the active-video window, and that VGA_CLK is hcount[0] (the
+ *   divide-by-two pixel clock). Simulation-only.
+ *
+ * How it fits
+ *   Covers the "VGA timing" testbench goal in design-document §Testing
+ *   and Verification. Reference values come from the 640x480@60 Hz
+ *   timing in §Timing, Table 4: H Total = 1600 pixel-clock ticks, V
+ *   Total = 525 lines, frame rate ~59.5 Hz. The DUT produces hcount
+ *   (0..1599) and vcount (0..524), plus the VGA_HS / VGA_VS /
+ *   VGA_BLANK_n / VGA_SYNC_n / VGA_CLK pins the VGA DAC expects.
+ *
+ * Background concepts
+ *   - hcount runs at the 50 MHz board clock; every two ticks produces one
+ *     VGA pixel clock (so VGA_CLK = hcount[0]). 1600 ticks cover 800
+ *     visible+blank pixels: 1280 active, then front porch, sync, back
+ *     porch until wrap.
+ *   - hcount = 1280 sits inside the horizontal blank window, so
+ *     VGA_BLANK_n must be low there. Inside the active window
+ *     VGA_BLANK_n is high and the DAC should be driving the RGB lines.
+ *   - Standard SV TB scaffolding. Free-running clk50 via
+ *     `always #10 clk50 = ~clk50;` (20 ns period = 50 MHz with the
+ *     1ns/1ps timescale). Reset held high briefly, then dropped.
+ *     Assertions are inline if/else blocks that bump an `errors`
+ *     accumulator and print PASS/FAIL through $display; the run ends
+ *     with $finish.
+ *
+ * Test phases
+ *   1. Run two full frames (2 * 1600 * 525 cycles) to let the counters
+ *      settle and hit every state.
+ *   2. Wait until hcount reaches 1599, confirm the next cycle wraps to 0.
+ *   3. Wait until vcount reaches 524 (last line before frame wrap).
+ *   4. Re-align on (hcount=0, vcount=0) and sample VGA_BLANK_n one cycle
+ *      later to confirm it is high in active video.
+ *   5. Step to hcount = 1280 (inside horizontal blanking) and confirm
+ *      VGA_BLANK_n is low there.
+ *   6. Confirm VGA_CLK == hcount[0] for the current cycle (the
+ *      divide-by-two relationship documented in §Timing).
  */
 
 `timescale 1ns/1ps

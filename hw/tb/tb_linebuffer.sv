@@ -1,10 +1,41 @@
 /*
- * Testbench for linebuffer module
+ * tb_linebuffer.sv — unit testbench for the double-banked linebuffer
  *
- * Verifies:
- *   - Write to draw buffer and read from display buffer
- *   - Swap toggles roles correctly
- *   - Boundary pixels (0 and 639)
+ * Role
+ *   Fills one bank through the write port, swaps roles, and reads back
+ *   through the display port to confirm the draw/display split works.
+ *   Simulation-only.
+ *
+ * How it fits
+ *   Covers the linebuffer swap scenario in design-document §Testing and
+ *   Verification / Hardware Testbenches: "confirm that buffer roles
+ *   toggle correctly on the lb_swap pulse and that read and write ports
+ *   never alias the same bank simultaneously". The real system drives
+ *   swap from vga_counters at hcount=0; this TB pulses it directly. See
+ *   §VGA Rendering Pipeline (§3.1) and Figure 3 for the per-scanline
+ *   timing the linebuffer is built around.
+ *
+ * Background concepts
+ *   - Double-banked line buffer. Two 640x8 banks. A sel flip-flop inside
+ *     linebuffer picks one as "display" (read port) and the other as
+ *     "draw" (write port). swap toggles sel, so on every hsync the roles
+ *     flip and no pixel ever moves between banks.
+ *   - 1-cycle read latency. Registered read-through. The TB drives
+ *     rd_addr and waits two posedge clk before sampling rd_data: one to
+ *     clock the address into the bank, one for the registered output.
+ *   - Standard SV TB scaffolding. Free-running clock via `always #10 clk
+ *     = ~clk;`, reset sequence in an initial block, stimulus-then-check,
+ *     $display/$finish for reporting.
+ *
+ * Test phases
+ *   1. Reset, then write the pattern pixel[i] = i[7:0] into the current
+ *      draw bank across all 640 addresses.
+ *   2. With no swap yet, read the display bank. It should still be the
+ *      untouched all-zero bank, proving the write port did not leak into
+ *      the read bank.
+ *   3. Pulse swap once; the bank we just wrote becomes the display bank.
+ *      Read pixels 0, 255, and 639 and compare to the pattern (255 is an
+ *      exact match for the low byte, 639 wraps to 127).
  */
 
 `timescale 1ns/1ps

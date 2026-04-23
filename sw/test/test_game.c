@@ -1,10 +1,28 @@
 /*
- * Host-compilable unit tests for game logic
+ * Host-compilable unit tests for game logic.
  *
- * Tests: collision detection, sun economy, zombie spawning,
+ * Covers collision detection, sun economy, zombie spawning, and
  * win/lose conditions.
  *
  * Compile and run on host: gcc -o test_game test_game.c ../game.c && ./test_game
+ *
+ * How it fits in:
+ *   Builds on a workstation (or in CI - see the test-host job in
+ *   .github/workflows/build.yml) with no hardware dependency: links
+ *   only game.c, not render.c or the driver. Exercises the cases
+ *   listed in design-doc section "Software Unit Tests": initial
+ *   state, plant placement + sun deduction, sun auto-increment
+ *   timing, pea/zombie collision, zombie destruction, lose, win. A
+ *   handful of extra tests below cover zombie eating edge cases.
+ *
+ * Why this file exists:
+ *   game.c is pure - no I/O, no threads, all state in one struct.
+ *   So we can step it frame-by-frame by calling game_update in a
+ *   loop, poke specific entity configs directly, and assert on the
+ *   post-conditions. Fastest feedback loop in the project.
+ *
+ * The ASSERT macro records each check and runs the full suite even
+ * after a failure, so one run surfaces every regression.
  */
 
 #include <stdio.h>
@@ -24,6 +42,8 @@ static int tests_failed = 0;
     } \
 } while (0)
 
+/* test_init: after game_init, sun = INITIAL_SUN, state =
+ * STATE_PLAYING, cursor at (0,0), and every grid cell is empty. */
 static void test_init(void)
 {
     game_state_t gs;
@@ -43,6 +63,9 @@ static void test_init(void)
     printf("  test_init: OK\n");
 }
 
+/* test_place_plant: placing deducts PLANT_COST; a second placement
+ * on the same cell fails (without spending sun); placement fails
+ * when the player can't afford it. */
 static void test_place_plant(void)
 {
     game_state_t gs;
@@ -71,6 +94,8 @@ static void test_place_plant(void)
     printf("  test_place_plant: OK\n");
 }
 
+/* test_remove_plant: game_remove_plant clears the cell; calling it
+ * on an already-empty cell returns 0. */
 static void test_remove_plant(void)
 {
     game_state_t gs;
@@ -92,6 +117,8 @@ static void test_remove_plant(void)
     printf("  test_remove_plant: OK\n");
 }
 
+/* test_sun_economy: step the loop for SUN_INTERVAL + 1 frames and
+ * check the passive sun timer has ticked exactly once. */
 static void test_sun_economy(void)
 {
     game_state_t gs;
@@ -108,6 +135,11 @@ static void test_sun_economy(void)
     printf("  test_sun_economy: OK\n");
 }
 
+/* test_collision: drop a pea and a zombie in the same row with
+ * overlapping x, step the loop once, and check that the pea goes
+ * inactive and the zombie takes PEA_DAMAGE. Keeps new spawns out of
+ * the way by pinning zombies_spawned = TOTAL and pushing spawn_timer
+ * far into the future. */
 static void test_collision(void)
 {
     game_state_t gs;
@@ -137,6 +169,9 @@ static void test_collision(void)
     printf("  test_collision: OK\n");
 }
 
+/* test_zombie_death: same setup as test_collision but the zombie
+ * starts with 1 HP, so the single hit kills it and the active flag
+ * clears. */
 static void test_zombie_death(void)
 {
     game_state_t gs;
@@ -162,6 +197,9 @@ static void test_zombie_death(void)
     printf("  test_zombie_death: OK\n");
 }
 
+/* test_lose_condition: put a zombie one move away from x = 0, step
+ * the loop, and expect STATE_LOSE. Mirrors the "zombie at x = 0"
+ * rule from design-doc section "Collision Detection". */
 static void test_lose_condition(void)
 {
     game_state_t gs;
@@ -183,6 +221,8 @@ static void test_lose_condition(void)
     printf("  test_lose_condition: OK\n");
 }
 
+/* test_win_condition: pin zombies_spawned = TOTAL_ZOMBIES, zero out
+ * every active zombie, step once, expect STATE_WIN. */
 static void test_win_condition(void)
 {
     game_state_t gs;
@@ -201,6 +241,9 @@ static void test_win_condition(void)
     printf("  test_win_condition: OK\n");
 }
 
+/* test_zombie_stops_at_plant: a zombie walking into a populated cell
+ * flips eating = 1 and stops advancing. A second game_update
+ * confirms no further motion while eating. */
 static void test_zombie_stops_at_plant(void)
 {
     game_state_t gs;
@@ -240,6 +283,10 @@ static void test_zombie_stops_at_plant(void)
     printf("  test_zombie_stops_at_plant: OK\n");
 }
 
+/* test_zombie_eats_and_destroys_plant: start with an already-eating
+ * zombie and eat_timer = 1, so the next game_update delivers the
+ * final bite. Plant drops to 0 HP, converts to PLANT_NONE, zombie
+ * clears its eating flag. */
 static void test_zombie_eats_and_destroys_plant(void)
 {
     game_state_t gs;
@@ -272,6 +319,10 @@ static void test_zombie_eats_and_destroys_plant(void)
     printf("  test_zombie_eats_and_destroys_plant: OK\n");
 }
 
+/* test_zombie_resumes_after_eating: stale eating state has to self-
+ * heal when the plant was already destroyed (e.g. by another
+ * zombie). The top of update_zombies re-checks the target cell, and
+ * if it's empty, unlatches eating so the zombie advances normally. */
 static void test_zombie_resumes_after_eating(void)
 {
     game_state_t gs;
@@ -305,6 +356,11 @@ static void test_zombie_resumes_after_eating(void)
     printf("  test_zombie_resumes_after_eating: OK\n");
 }
 
+/* test_two_zombies_eat_same_plant: two zombies biting a 2-HP plant
+ * on the same frame should kill it cleanly, without double-counting
+ * and without negative HP. The second zombie (processed later)
+ * destroys the plant and clears its own eating flag; the first
+ * zombie notices next frame via the re-check and also clears. */
 static void test_two_zombies_eat_same_plant(void)
 {
     game_state_t gs;
@@ -347,6 +403,11 @@ static void test_two_zombies_eat_same_plant(void)
     printf("  test_two_zombies_eat_same_plant: OK\n");
 }
 
+/*
+ * Driver. Pin the PRNG seed so update_spawning picks the same rows
+ * every run, then run every test. Exit code is 0 iff no assertion
+ * failed, which lets CI gate merges on this file.
+ */
 int main(void)
 {
     srand(42); /* Deterministic for testing */

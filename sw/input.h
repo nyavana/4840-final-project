@@ -1,6 +1,20 @@
 #ifndef PVZ_INPUT_H
 #define PVZ_INPUT_H
 
+/*
+ * Public input surface for the game.
+ *
+ * How it fits in:
+ *   main.c calls input_init once at startup, input_poll once per
+ *   frame, and input_close at shutdown. test/test_input.c exercises
+ *   the same three functions. See the "Input System" section of the
+ *   design document.
+ *
+ * The INPUT_* constants are source-agnostic action codes; swapping
+ * the implementation from keyboard evdev to a libusb gamepad read
+ * would not touch this header.
+ */
+
 /* Input event codes returned by input_poll() */
 #define INPUT_NONE   0
 #define INPUT_UP     1

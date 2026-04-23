@@ -2,6 +2,7 @@
 .claude/
 .codex/
 .gemini/
+openspec/
 
 # OS junk
 .DS_Store

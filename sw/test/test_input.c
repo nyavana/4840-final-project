@@ -1,8 +1,22 @@
 /*
- * Test program: print keyboard events from /dev/input/eventX
+ * Test program: print keyboard events from /dev/input/eventX.
  *
  * Usage: ./test_input [/dev/input/eventN]
  * Default: /dev/input/event0
+ *
+ * How it fits in:
+ *   On-board smoke test for the input pipeline (design-doc section
+ *   "On-Board Integration"). Runs the same polling loop as main.c,
+ *   input_poll every 16.67 ms, but instead of feeding the game it
+ *   prints which logical key fired. If the output looks right, every
+ *   stage of the keyboard path is working: the evdev device is
+ *   readable, O_NONBLOCK polling at 60 Hz catches events, and the
+ *   KEY_* -> INPUT_* mapping in input.c matches what the user
+ *   pressed.
+ *
+ * ESC exits cleanly (closes the fd and returns 0). Any other key
+ * prints its name and the loop keeps going. Ctrl+C also works (tty
+ * default).
  */
 
 #include <stdio.h>
@@ -37,6 +51,7 @@ int main(int argc, char *argv[])
         case INPUT_ESC:   printf("ESC (quit)\n"); input_close(); return 0;
         case INPUT_NONE:  break;
         }
+        // 1_000_000 us / 60 ~= 16667; matches main.c's frame budget.
         usleep(16667); /* ~60 Hz polling */
     }
 

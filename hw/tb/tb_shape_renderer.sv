@@ -1,11 +1,47 @@
 /*
- * Testbench for shape_renderer module
+ * tb_shape_renderer.sv — scanline-level testbench for shape_renderer
  *
- * Verifies:
- *   - Rectangle rendering (correct pixels filled)
- *   - Z-order (shapes overwrite background)
- *   - Invisible shapes skipped
- *   - Scanlines that don't intersect shapes get only background
+ * Role
+ *   Replaces the real shape_table and bg_grid with simple stubs, runs the
+ *   renderer FSM one scanline at a time, records every linebuffer write,
+ *   and compares the resulting per-pixel colors against a hand-computed
+ *   reference. Simulation-only.
+ *
+ * How it fits
+ *   Covers the "Shape rendering" testbench goal in design-document
+ *   §Testing and Verification: feed known shape entries, compare
+ *   linebuffer contents against a golden reference. The FSM under test
+ *   is in §Renderer FSM (§3.3); the painter's-algorithm overlay of
+ *   shapes on top of the bg_grid fill is the check this TB defends.
+ *
+ * Background concepts
+ *   - Stubs instead of DUT siblings. bg_color is tied to 8'd1 (constant
+ *     "background"), shape_index is answered by a combinational block
+ *     that returns one visible rectangle at slot 0 and invisible entries
+ *     for 1..47, and sprite_rd_pixel is tied to 0xFF (the transparent
+ *     sentinel). This isolates the FSM under test without pulling in the
+ *     real shape_table / bg_grid / sprite_rom.
+ *   - Painter's algorithm. shape_renderer first fills the line with
+ *     bg_color (S_BG_FILL) and then walks all 48 shape slots in order,
+ *     overwriting the linebuffer wherever a visible shape hits. Later
+ *     indices overwrite earlier ones. This TB depends on that ordering
+ *     when it expects pixel 100..149 on scanline 120 to read color 5
+ *     instead of color 1.
+ *   - One-scanline probe. do_render() loads a pixel_result[] shadow
+ *     array with 0xFF sentinels ("no write yet"), pulses render_start,
+ *     and records every linebuffer write until render_done asserts or a
+ *     5000-cycle watchdog fires. write_count should be at least 640 per
+ *     scanline since the background fill alone covers the whole line.
+ *   - Standard SV TB scaffolding. Clock via `always #10 clk = ~clk;`,
+ *     reset sequence, $display/$finish reporting, outer watchdog timeout
+ *     via a second initial block.
+ *
+ * Test phases
+ *   1. Scanline 120 (inside the rectangle's y range 100..149). Check
+ *      that pixels 100..149 are color 5 (the shape), pixel 50 is color 1
+ *      (background), and the write count covers the full line.
+ *   2. Scanline 50 (above the rectangle). Check that the rectangle does
+ *      not appear and pixel 120 is still color 1.
  */
 
 `timescale 1ns/1ps

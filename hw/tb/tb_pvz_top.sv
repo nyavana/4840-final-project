@@ -1,10 +1,47 @@
 /*
- * End-to-end testbench for pvz_top
+ * tb_pvz_top.sv — end-to-end smoke test for the full pvz_top peripheral
  *
- * Verifies:
- *   - Avalon register writes (BG_CELL, SHAPE_ADDR/DATA0/DATA1/COMMIT)
- *   - VGA output produces non-zero pixels after programming
- *   - Vsync latching occurs
+ * Role
+ *   Drives Avalon writes the way the kernel driver would, runs the design
+ *   long enough for a full VGA frame to scan out, and samples the VGA
+ *   pins during active video to confirm nothing is badly broken.
+ *   Simulation-only; $display and $finish here are part of the
+ *   Verilator/ModelSim harness and are not synthesised.
+ *
+ * How it fits
+ *   Corresponds to the "End-to-end" bullet under design-document §Testing
+ *   and Verification / Hardware Testbenches. See §Peripheral Internal
+ *   Structure (Figure 2) for the dataflow this TB exercises and §Register
+ *   Map (Table 10) for the five CPU-visible offsets.
+ *
+ * Background concepts
+ *   - Avalon write protocol. pvz_top is an Avalon-MM agent. A write
+ *     asserts chipselect and write, drives address (word offset 0..4) and
+ *     writedata, then deasserts both. The avalon_write task below
+ *     packages that into a single call.
+ *   - Word vs byte offsets. The address input here is a word offset; the
+ *     ARM-side kernel driver uses byte offsets (base + 4*N). The five
+ *     slots are BG_CELL=0, SHAPE_ADDR=1, SHAPE_DATA0=2, SHAPE_DATA1=3,
+ *     SHAPE_COMMIT=4.
+ *   - Frame timing. One frame is 1600 (hcount wrap) * 525 (vcount wrap) =
+ *     840 000 cycles at 50 MHz. The long `repeat` below steps past one
+ *     full frame so vsync_latch has definitely copied shadow->active
+ *     before the VGA sampling runs.
+ *   - Watchdog. The second initial block kills the run if the main
+ *     simulation hangs past 200 ms of simulated time.
+ *
+ * Test phases
+ *   1. Reset, then pulse through the configuration writes:
+ *        a. BG_CELL: cell (row=0, col=0) := palette index 2.
+ *        b. SHAPE_ADDR := slot 0.
+ *        c. SHAPE_DATA0: type=0 (rect), visible=1, x=100, y=100.
+ *        d. SHAPE_DATA1: w=50, h=50, color=5.
+ *        e. SHAPE_COMMIT := 1 (any nonzero, as the register requires).
+ *   2. Wait one full frame (plus ~120 lines) so vsync latches the staged
+ *      shape and background into the active copies.
+ *   3. Wait for VGA_BLANK_n to go high, sample R/G/B, and print sync
+ *      signal states so a human can eyeball that the pipeline produced
+ *      non-zero pixels and that HS/VS are toggling.
  */
 
 `timescale 1ns/1ps

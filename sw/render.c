@@ -1,18 +1,44 @@
 /*
- * Game state to FPGA shape table renderer
+ * Game state -> FPGA shape-table renderer.
  *
- * Converts the game state into shape table entries and background cells,
- * then writes them to the FPGA via ioctls.
+ * Turns game state into shape-table entries and background cells,
+ * then pushes them to the FPGA via ioctls.
  *
- * Shape table index allocation:
+ * How it fits in:
+ *   Called once per frame from main.c with the current game_state_t.
+ *   The only side channel is the FPGA fd stashed at render_init()
+ *   time. ioctls go through pvz_driver.ko (see pvz.h for
+ *   PVZ_WRITE_BG and PVZ_WRITE_SHAPE) and land as Avalon register
+ *   writes to the shape table in the FPGA. See design-doc section
+ *   3.1 "State-Aware Rendering and Shape-Index Allocation".
+ *
+ * Shape table and ioctl wrappers:
+ *   The renderer sees the FPGA as 48 shape slots plus a 4 x 8
+ *   background grid. write_bg() issues one PVZ_WRITE_BG ioctl, which
+ *   the driver turns into one BG_CELL register write (background
+ *   Avalon path is a single register, so one ioctl equals one Avalon
+ *   write). write_shape() issues one PVZ_WRITE_SHAPE ioctl, which
+ *   the driver expands into the 4-write Avalon sequence against the
+ *   shape table: SHAPE_ADDR, SHAPE_DATA0, SHAPE_DATA1, SHAPE_COMMIT.
+ *   The commit write latches the entry atomically so the scanline
+ *   fetcher never sees a half-updated slot and the frame doesn't
+ *   tear.
+ *
+ * Painter's-algorithm z-order:
+ *   The hardware shape renderer walks the table in index order, and
+ *   later writes cover earlier ones - straight painter's algorithm.
+ *   Higher index means drawn on top. So we allocate indices by layer
+ *   (plants low, cursor on top).
+ *
+ * Shape table index allocation (original sketch):
  *   0-15:  Plants (2 shapes each, 8 slots = 16 shapes max)
  *          For 4 rows x 8 cols = 32 cells, but max ~8 plants expected
- *          Actually allocate based on grid position:
+ *          Actually allocate by grid position:
  *          index = (row * GRID_COLS + col) for body (0-31)
  *   0-31:  Plant shapes (body at even, stem at odd: 2 per cell, 32 cells)
  *   32-41: Zombies (2 shapes each: body + head, 5 zombies)
  *   42-47: Projectiles (1 shape each, up to 6 visible)
- *          Remaining projectiles not drawn if >6 active
+ *          Any extra projectiles beyond 6 are not drawn
  *
  * Revised allocation to fit 48 entries (higher index = drawn on top):
  *   0-31:  Plants: 32 grid cells, 1 shape each (simplified body)
@@ -38,6 +64,11 @@ static int fd;
 #define IDX_PEA_COUNT     6
 #define IDX_HUD_START     43
 #define IDX_HUD_COUNT     4
+/* Cursor sits at slot 47, the highest in the table, so the painter's
+ * pass draws it last and it can never hide behind a plant. This is
+ * the fix from commit dc297d4; an earlier version put the cursor at
+ * a low index and plants in the same cell covered it. Design-doc
+ * section 3.1 calls this out explicitly. */
 #define IDX_CURSOR        47
 
 /* Color indices (must match color_palette.sv) */
@@ -55,12 +86,25 @@ static int fd;
 #define COL_GRAY        11
 #define COL_ORANGE      12
 
+/*
+ * One PVZ_WRITE_BG ioctl writes one background cell. The driver
+ * packs (row, col, color) into a single BG_CELL register write on
+ * the Avalon bus. One-to-one mapping.
+ */
 static void write_bg(int row, int col, int color)
 {
     pvz_bg_arg_t bg = { .row = row, .col = col, .color = color };
     ioctl(fd, PVZ_WRITE_BG, &bg);
 }
 
+/*
+ * One PVZ_WRITE_SHAPE ioctl updates one shape-table slot. The driver
+ * expands it into the 4-write Avalon sequence from design-doc
+ * section 3.1: SHAPE_ADDR (select slot), SHAPE_DATA0 (type/visible/
+ * x/y), SHAPE_DATA1 (w/h/color), SHAPE_COMMIT (latch). The commit
+ * write is what makes the new entry atomic against the scanline
+ * fetcher.
+ */
 static void write_shape(int index, int type, int visible,
                         int x, int y, int w, int h, int color)
 {
@@ -77,6 +121,12 @@ static void write_shape(int index, int type, int visible,
     ioctl(fd, PVZ_WRITE_SHAPE, &s);
 }
 
+/*
+ * Clear a slot by committing an entry with visible = 0. The hardware
+ * still walks it, but the visibility bit short-circuits the pixel
+ * write. Leaving visible=0 slots in place is cheaper than compacting
+ * the table.
+ */
 static void hide_shape(int index)
 {
     write_shape(index, SHAPE_RECT, 0, 0, 0, 0, 0, 0);
@@ -88,6 +138,15 @@ int render_init(int fpga_fd)
     return 0;
 }
 
+/*
+ * Rewrite every background cell every frame. A one-shot init at
+ * startup would be enough, but 32 ioctls per frame is cheap and
+ * makes the driver path behave the same way during play and during
+ * win/lose.
+ *
+ * (r + c) parity gives the checkerboard from design-doc "Display
+ * Layout".
+ */
 static void render_background(const game_state_t *gs)
 {
     for (int r = 0; r < GRID_ROWS; r++)
@@ -95,6 +154,11 @@ static void render_background(const game_state_t *gs)
             write_bg(r, c, ((r + c) % 2 == 0) ? COL_DARK_GREEN : COL_LIGHT_GREEN);
 }
 
+/*
+ * Cursor is the top-of-stack shape (slot 47). Grid-to-pixel mapping
+ * is from design-doc section "Display Layout":
+ *   x = c * CELL_WIDTH, y = GAME_AREA_Y + r * CELL_HEIGHT.
+ */
 static void render_cursor(const game_state_t *gs)
 {
     int x = gs->cursor_col * CELL_WIDTH;
@@ -103,6 +167,11 @@ static void render_cursor(const game_state_t *gs)
     write_shape(IDX_CURSOR, SHAPE_RECT, 1, x, y, CELL_WIDTH, CELL_HEIGHT, COL_YELLOW);
 }
 
+/*
+ * Emit one shape per grid cell: index 0..31 == row * 8 + col. Empty
+ * cells hide their slot so no stale sprite lingers after a zombie
+ * eats a plant.
+ */
 static void render_plants(const game_state_t *gs)
 {
     /* Peashooter sprite: 32x32 source rendered at 2x -> 64x64 on screen.
@@ -125,6 +194,12 @@ static void render_plants(const game_state_t *gs)
     }
 }
 
+/*
+ * Emit one shape per zombie pool slot. Inactive slots are hidden.
+ * The shape index is pool-position based (IDX_ZOMBIE_START + i), not
+ * z-order based, so slot reuse in update_spawning doesn't force the
+ * renderer to reshuffle anything.
+ */
 static void render_zombies(const game_state_t *gs)
 {
     for (int i = 0; i < MAX_ZOMBIES; i++) {
@@ -142,6 +217,13 @@ static void render_zombies(const game_state_t *gs)
     }
 }
 
+/*
+ * Only IDX_PEA_COUNT (6) pea shape slots exist, but MAX_PROJECTILES
+ * (16) is the pool size. If more than 6 peas are live at once the
+ * extras still get simulated (collision and movement) but not
+ * drawn. The "drawn" counter enforces the cap, and any surplus
+ * slots past drawn get hidden below.
+ */
 static void render_projectiles(const game_state_t *gs)
 {
     int drawn = 0;
@@ -161,6 +243,13 @@ static void render_projectiles(const game_state_t *gs)
         hide_shape(IDX_PEA_START + i);
 }
 
+/*
+ * Render the sun counter as up to IDX_HUD_COUNT decimal digits.
+ * We split digits off the low end of the integer and reverse them so
+ * the most-significant digit comes first for left-to-right screen
+ * layout. SHAPE_DIGIT is decoded in hardware by the 7-segment
+ * renderer.
+ */
 static void render_hud(const game_state_t *gs)
 {
     /* Display sun counter as 7-segment digits in the HUD area (y=10) */
@@ -194,6 +283,11 @@ static void render_hud(const game_state_t *gs)
         int idx = IDX_HUD_START + i;
         if (i < num_digits) {
             int x = 10 + i * 25;
+            // 7-seg encoding trick: the w field carries both the
+            // bounding width (upper bits, >= 20 so the renderer
+            // covers the whole glyph) and the digit value in the low
+            // 4 bits. 32 + digit gives both, since (32 + d) & 0xF
+            // == d for d in 0..9.
             write_shape(idx, SHAPE_DIGIT, 1, x, 15,
                         32 + digits[i], 30, COL_WHITE);
         } else {
@@ -202,11 +296,20 @@ static void render_hud(const game_state_t *gs)
     }
 }
 
+/*
+ * Win/lose banner. We reuse slot IDX_CURSOR (47) for two reasons:
+ * render_frame() hides every other slot before getting here so 47
+ * is the only active one, and slot 47 sits on top of the painter's
+ * order so the banner can't be occluded.
+ */
 static void render_game_over(const game_state_t *gs)
 {
     /* Simple game-over indicator: large colored rectangle in center */
     if (gs->state == STATE_WIN) {
         /* Green "WIN" indicator */
+        // 200 x 80 rectangle centred roughly at (320, 240): x = 220
+        // puts the left edge 100 px left of centre, y = 200 puts the
+        // top 40 px above centre.
         write_shape(IDX_CURSOR, SHAPE_RECT, 1, 220, 200, 200, 80, COL_BRIGHT_GREEN);
     } else if (gs->state == STATE_LOSE) {
         /* Red "LOSE" indicator */
@@ -214,6 +317,19 @@ static void render_game_over(const game_state_t *gs)
     }
 }
 
+/*
+ * Entry point called once per frame from main.c.
+ *
+ * Two modes, picked off gs->state:
+ *   STATE_PLAYING  - full stack: background, plants, zombies, peas,
+ *                    cursor, HUD. Every shape slot gets rewritten
+ *                    every frame (even if unchanged) because the
+ *                    hardware only renders from what's committed.
+ *   STATE_WIN/LOSE - hide every entity slot so only the banner is
+ *                    visible, then draw the banner via
+ *                    render_game_over. The background stays up since
+ *                    render_background always runs.
+ */
 void render_frame(const game_state_t *gs)
 {
     render_background(gs);

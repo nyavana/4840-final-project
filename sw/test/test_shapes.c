@@ -1,8 +1,25 @@
 /*
- * Test program: write test patterns to FPGA via ioctl
+ * Test program: push test patterns to the FPGA via ioctl.
  *
- * Creates a checkerboard background, sample rectangle, circle,
+ * Draws a checkerboard background plus sample rectangle, circle,
  * and digit shapes.
+ *
+ * How it fits in:
+ *   On-board smoke test for the full driver + hardware path (design-
+ *   doc section "On-Board Integration"). test_shapes uses the same
+ *   PVZ_WRITE_BG and PVZ_WRITE_SHAPE ioctls as render.c, but with
+ *   hand-picked stimulus so a human can eyeball the VGA output and
+ *   confirm every shape type renders. If the rectangle and circle
+ *   show up at the right coordinates, the Avalon write path, the
+ *   shape table, and the linebuffer render FSM are all alive.
+ *
+ * No cleanup path:
+ *   Once the shapes are committed the process sits in a
+ *   `for (;;) sleep(1)` so the display keeps showing the pattern.
+ *   Ctrl+C kills the process, but the shape table keeps its last
+ *   committed state - the hardware does not clear on process exit.
+ *   Reload the pvz_driver module or rerun this tool with different
+ *   inputs to reset.
  */
 
 #include <stdio.h>
@@ -52,11 +69,19 @@ int main()
         return 1;
     }
 
+    /* Stimulus 1: checkerboard background. Writes all 4 x 8 cells
+     * alternating between colour indices 1 and 2. Confirms the
+     * PVZ_WRITE_BG ioctl path and the background palette lookup
+     * work. */
     printf("Setting up checkerboard background...\n");
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 8; c++)
             write_bg(r, c, ((r + c) % 2 == 0) ? 1 : 2);
 
+    /* Stimulus 2: one of each shape type across a few slots. The
+     * slot indices (0..5) are arbitrary; they just need to be
+     * unique. This isn't running a game, it's only exercising the
+     * SHAPE_* renderers. */
     printf("Drawing test shapes...\n");
 
     /* Rectangle: green body at (100, 100), 60x40 */
@@ -66,6 +91,9 @@ int main()
     write_shape(1, SHAPE_CIRCLE, 1, 290, 190, 20, 20, 9);
 
     /* Digit '5' at (400, 70), white */
+    // For this test the raw digit value 5 (< 16) doubles as the
+    // width and the 7-seg value. render.c uses the 32+digit idiom
+    // instead.
     write_shape(2, SHAPE_DIGIT, 1, 400, 70, 5, 30, 10);
 
     /* Red rectangle (zombie) at (500, 150), 30x70 */
@@ -75,6 +103,8 @@ int main()
     write_shape(4, SHAPE_RECT, 1, 0, 60, 80, 90, 4);
 
     /* Invisible shape (should not appear) */
+    // visible = 0 has to suppress the shape entirely. If you can
+    // see an orange rectangle, the visibility gate is broken.
     write_shape(5, SHAPE_RECT, 0, 200, 200, 50, 50, 12);
 
     printf("Test patterns written. Press Ctrl+C to exit.\n");
