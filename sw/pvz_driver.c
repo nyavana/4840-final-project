@@ -74,6 +74,8 @@ static long pvz_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
     case PVZ_WRITE_SHAPE:
         if (copy_from_user(&shape, (pvz_shape_arg_t *)arg, sizeof(shape)))
             return -EACCES;
+        if (shape.index >= 64)
+            return -EINVAL;
         write_shape(&shape);
         break;
 

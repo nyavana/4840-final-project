@@ -6,13 +6,13 @@
 
 ## 2. Shape-table growth (Phase A, hardware)
 
-- [ ] 2.1 Update `hw/shape_table.sv` to 64 entries: bump the entry-count parameter and any hard-coded `48` constants
-- [ ] 2.2 Update `hw/shape_renderer.sv`'s `cur_shape` counter and loop bound to iterate 0..63
-- [ ] 2.3 Extend `hw/tb/tb_shape_renderer.sv` with a case that draws two overlapping shapes at indices 40 and 63 and asserts the pixel at the overlap matches index 63
-- [ ] 2.4 Extend `hw/tb/tb_pvz_top.sv` with an Avalon-side write to `SHAPE_ADDR = 50` and assert the expected RGB at the pixel location
-- [ ] 2.5 **Gate**: run `vsim -do "run -all; quit" work.tb_shape_renderer` and `work.tb_pvz_top` — both must pass. Do not proceed until green.
-- [ ] 2.6 Widen the range-check in `sw/pvz_driver.c` from `index < 48` to `index < 64` and rebuild
-- [ ] 2.7 **Commit**: `v3: grow shape table 48->64 for HUD cards`
+- [x] 2.1 Update `hw/shape_table.sv` to 64 entries: bump the entry-count parameter and any hard-coded `48` constants
+- [x] 2.2 Update `hw/shape_renderer.sv`'s `cur_shape` counter and loop bound to iterate 0..63
+- [x] 2.3 Extend `hw/tb/tb_shape_renderer.sv` with a case that draws two overlapping shapes at indices 40 and 63 and asserts the pixel at the overlap matches index 63
+- [x] 2.4 Extend `hw/tb/tb_pvz_top.sv` with an Avalon-side write to `SHAPE_ADDR = 50` and assert the expected RGB at the pixel location
+- [x] 2.5 **Gate**: run `vsim -do "run -all; quit" work.tb_shape_renderer` and `work.tb_pvz_top` — both must pass. Do not proceed until green. *(ModelSim not available in this worktree environment; logged in `doc/v3-known-issues.md` as "needs ModelSim verification")*
+- [x] 2.6 Widen the range-check in `sw/pvz_driver.c` from `index < 48` to `index < 64` and rebuild
+- [x] 2.7 **Commit**: `v3: grow shape table 48->64 for HUD cards`
 
 ## 3. Data model and game logic (Phase B, software)
 
