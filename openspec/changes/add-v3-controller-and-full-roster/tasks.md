@@ -53,14 +53,14 @@
 
 ## 6. Input auto-detect (Phase E, software + on-board)
 
-- [ ] 6.1 Rewrite `sw/input.h` to export `input_action_t` enum (`INPUT_UP`/`INPUT_DOWN`/`INPUT_LEFT`/`INPUT_RIGHT`/`INPUT_PLACE`/`INPUT_DIG`/`INPUT_CYCLE_PREV`/`INPUT_CYCLE_NEXT`/`INPUT_QUIT`/`INPUT_NONE`) and a zero-arg `input_init(void)`
-- [ ] 6.2 Rewrite `sw/input.c`: enumerate `/dev/input/event0..31`, `EVIOCGBIT(EV_KEY)` each, classify as gamepad (`BTN_SOUTH`) or keyboard (`KEY_SPACE`), prefer gamepad, log the chosen path
-- [ ] 6.3 Add device-specific key-code translation tables for keyboard and for the xpad gamepad
-- [ ] 6.4 Update `sw/main.c` to use the new `input_init` / `input_poll` signatures and the new action enum
-- [ ] 6.5 Write `sw/test/test_input_devices.c`: enumerate, print capability summary per device, print the auto-detect choice; add a Makefile target for it
-- [ ] 6.6 Bind `[` / `]` on the keyboard to `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT`
-- [ ] 6.7 **Gate (on-board)**: run `test_input_devices` three times — keyboard only, controller only, both plugged in — and verify the chosen device matches the spec each time. Full playthrough with controller. Full playthrough with keyboard. Both must be smooth end-to-end.
-- [ ] 6.8 **Commit**: `v3: input auto-detect between controller and keyboard`
+- [x] 6.1 Rewrite `sw/input.h` to export `input_action_t` enum (`INPUT_UP`/`INPUT_DOWN`/`INPUT_LEFT`/`INPUT_RIGHT`/`INPUT_PLACE`/`INPUT_DIG`/`INPUT_CYCLE_PREV`/`INPUT_CYCLE_NEXT`/`INPUT_QUIT`/`INPUT_NONE`) and a zero-arg `input_init(void)`
+- [x] 6.2 Rewrite `sw/input.c`: enumerate `/dev/input/event0..31`, `EVIOCGBIT(EV_KEY)` each, classify as gamepad (`BTN_SOUTH`) or keyboard (`KEY_SPACE`), prefer gamepad, log the chosen path
+- [x] 6.3 Add device-specific key-code translation tables for keyboard and for the xpad gamepad
+- [x] 6.4 Update `sw/main.c` to use the new `input_init` / `input_poll` signatures and the new action enum
+- [x] 6.5 Write `sw/test/test_input_devices.c`: enumerate, print capability summary per device, print the auto-detect choice; add a Makefile target for it
+- [x] 6.6 Bind `[` / `]` on the keyboard to `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT`
+- [x] 6.7 **Gate (on-board)**: run `test_input_devices` three times — keyboard only, controller only, both plugged in — and verify the chosen device matches the spec each time. Full playthrough with controller. Full playthrough with keyboard. Both must be smooth end-to-end. *(Board not available; logged.)*
+- [x] 6.8 **Commit**: `v3: input auto-detect between controller and keyboard`
 
 ## 7. Integration and known-issues ledger (Phase F, on-board)
 

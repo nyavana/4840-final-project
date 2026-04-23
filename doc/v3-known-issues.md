@@ -16,6 +16,15 @@ Format per entry:
 
 ---
 
+## Board verification of input auto-detect (Phase E gate 6.7)
+
+- **Severity**: minor
+- **Area**: input
+- **Found in phase**: E
+- **Reproduction**: Phase E gate requires running `test_input_devices` on the DE1-SoC three times — keyboard only, controller only, both plugged in — and verifying the chosen device matches the spec each time. Also requires a full playthrough with each device. Board not available in this worktree environment.
+- **Proposed fix**: Cross-compile and deploy. Confirm `xpad` module is loaded (`modprobe xpad` or `lsmod | grep xpad`); if missing, document it as a prerequisite in `doc/v3-changes.md`. Run `test_input_devices` and `test_input` on the board in each configuration, confirm gamepad wins whenever present, and play a full level with each device.
+- **Status**: open
+
 ## Board verification of plant-selector HUD (Phase D gate 5.6)
 
 - **Severity**: minor
