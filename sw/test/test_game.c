@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../game.h"
+#include "../pvz.h"
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -637,6 +638,160 @@ static void test_wave_spawn_types(void)
     printf("  test_wave_spawn_types: OK\n");
 }
 
+/* ---------- audio event tests ---------- */
+
+static void test_pea_fire_emits_event(void)
+{
+    game_state_t gs;
+    game_init(&gs);
+    park_waves(&gs);
+
+    gs.grid[0][0].type = PLANT_PEASHOOTER;
+    gs.grid[0][0].hp = plant_max_hp(PLANT_PEASHOOTER);
+    gs.grid[0][0].fire_cooldown = 0; /* ready to fire this tick */
+
+    /* Zombie in same row so peashooter has a target */
+    gs.zombies[0].active = 1;
+    gs.zombies[0].type = ZOMBIE_BASIC;
+    gs.zombies[0].row = 0;
+    gs.zombies[0].x_pixel = SCREEN_W - 100;
+    gs.zombies[0].hp = zombie_max_hp(ZOMBIE_BASIC);
+
+    audio_events_t ev = { .flags = 0 };
+    game_update(&gs, &ev);
+
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_PEA_FIRE),
+           "PEA_FIRE event emitted when peashooter fires");
+    printf("  test_pea_fire_emits_event: OK\n");
+}
+
+static void test_pea_hit_emits_event(void)
+{
+    game_state_t gs;
+    game_init(&gs);
+    park_waves(&gs);
+
+    /* Pea already in flight, positioned at the zombie */
+    gs.projectiles[0].active = 1;
+    gs.projectiles[0].row = 0;
+    gs.projectiles[0].x_pixel = 300;
+
+    gs.zombies[0].active = 1;
+    gs.zombies[0].type = ZOMBIE_BASIC;
+    gs.zombies[0].row = 0;
+    gs.zombies[0].x_pixel = 300;
+    gs.zombies[0].hp = 3; /* survive the hit */
+
+    audio_events_t ev = { .flags = 0 };
+    game_update(&gs, &ev);
+
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_PEA_HIT),
+           "PEA_HIT event emitted on pea-zombie collision");
+    printf("  test_pea_hit_emits_event: OK\n");
+}
+
+static void test_zombie_death_emits_event(void)
+{
+    game_state_t gs;
+    game_init(&gs);
+    park_waves(&gs);
+
+    /* Pea at zombie position, zombie at 1 HP (lethal hit) */
+    gs.projectiles[0].active = 1;
+    gs.projectiles[0].row = 0;
+    gs.projectiles[0].x_pixel = 300;
+
+    gs.zombies[0].active = 1;
+    gs.zombies[0].type = ZOMBIE_BASIC;
+    gs.zombies[0].row = 0;
+    gs.zombies[0].x_pixel = 300;
+    gs.zombies[0].hp = 1;
+
+    gs.zombies_spawned = 1;
+
+    audio_events_t ev = { .flags = 0 };
+    game_update(&gs, &ev);
+
+    ASSERT(gs.zombies[0].active == 0, "zombie is dead (precondition)");
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_ZOMBIE_DEATH),
+           "ZOMBIE_DEATH event emitted when zombie HP reaches 0");
+    printf("  test_zombie_death_emits_event: OK\n");
+}
+
+static void test_zombie_bite_emits_event(void)
+{
+    game_state_t gs;
+    game_init(&gs);
+    park_waves(&gs);
+
+    /* Plant at col 2, zombie eating it with eat_timer=1 (expires this tick) */
+    gs.grid[0][2].type = PLANT_PEASHOOTER;
+    gs.grid[0][2].hp = 3;
+    gs.grid[0][2].fire_cooldown = 99999;
+
+    gs.zombies[0].active = 1;
+    gs.zombies[0].type = ZOMBIE_BASIC;
+    gs.zombies[0].row = 0;
+    gs.zombies[0].x_pixel = 2 * CELL_WIDTH;
+    gs.zombies[0].hp = 3;
+    gs.zombies[0].eating = 1;
+    gs.zombies[0].eat_timer = 1; /* expires on this tick */
+
+    gs.zombies_spawned = TOTAL_ZOMBIES;
+
+    audio_events_t ev = { .flags = 0 };
+    game_update(&gs, &ev);
+
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_ZOMBIE_BITE),
+           "ZOMBIE_BITE event emitted when zombie deals a bite");
+    printf("  test_zombie_bite_emits_event: OK\n");
+}
+
+static void test_plant_place_emits_event(void)
+{
+    game_state_t gs;
+    game_init(&gs);
+    park_waves(&gs);
+
+    gs.cursor_row = 0;
+    gs.cursor_col = 0;
+    gs.selected_plant = 0; /* Peashooter */
+    /* Enough sun (default INITIAL_SUN=100 >= cost 50) */
+
+    audio_events_t ev = { .flags = 0 };
+    int result = game_place_plant(&gs, &ev);
+
+    ASSERT(result == 1, "plant placement succeeded (precondition)");
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_PLANT_PLACE),
+           "PLANT_PLACE event emitted on successful placement");
+    printf("  test_plant_place_emits_event: OK\n");
+}
+
+static void test_wave_start_emits_event(void)
+{
+    /*
+     * WAVE_START fires on every zombie spawn (one wave entry = one zombie).
+     * The wave template has no grouping concept; each scheduled spawn is
+     * independent, so the event fires each time a spawn lands.
+     */
+    game_state_t gs;
+    srand(42);
+    game_init(&gs);
+
+    int first_spawn_frame = gs.wave[0].spawn_frame;
+
+    /* Advance frame_count to one before the scheduled spawn */
+    gs.frame_count = first_spawn_frame - 1;
+
+    audio_events_t ev = { .flags = 0 };
+    game_update(&gs, &ev); /* this tick reaches first_spawn_frame */
+
+    ASSERT(gs.wave_index == 1, "first zombie spawned (precondition)");
+    ASSERT(ev.flags & PVZ_AUDIO_EVENT(PVZ_SFX_WAVE_START),
+           "WAVE_START event emitted when first zombie of wave spawns");
+    printf("  test_wave_start_emits_event: OK\n");
+}
+
 int main(void)
 {
     srand(42); /* Deterministic for testing */
@@ -664,6 +819,14 @@ int main(void)
     test_zombie_resumes_after_eating();
     test_two_zombies_eat_same_plant();
     test_wave_spawn_types();
+
+    /* audio event emission tests */
+    test_pea_fire_emits_event();
+    test_pea_hit_emits_event();
+    test_zombie_death_emits_event();
+    test_zombie_bite_emits_event();
+    test_plant_place_emits_event();
+    test_wave_start_emits_event();
 
     printf("\nResults: %d passed, %d failed\n",
            tests_passed, tests_failed);

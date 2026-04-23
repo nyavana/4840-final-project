@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "game.h"
+#include "pvz.h"
 
 /* Per-plant-type stats.  Indexed by plant_type_t. */
 static const struct {
@@ -93,7 +94,6 @@ void game_init(game_state_t *gs)
 
 int game_place_plant(game_state_t *gs, audio_events_t *ev)
 {
-    (void)ev;  /* Task 4.4 will emit into ev */
     int r = gs->cursor_row;
     int c = gs->cursor_col;
 
@@ -131,6 +131,7 @@ int game_place_plant(game_state_t *gs, audio_events_t *ev)
         break;
     }
     gs->sun -= cost;
+    if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_PLANT_PLACE);
     return 1;
 }
 
@@ -174,7 +175,7 @@ static int zombie_in_row(game_state_t *gs, int row)
 }
 
 /* Spawn a new pea projectile at the given grid cell */
-static void spawn_pea(game_state_t *gs, int row, int col)
+static void spawn_pea(game_state_t *gs, int row, int col, audio_events_t *ev)
 {
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         if (!gs->projectiles[i].active) {
@@ -182,6 +183,7 @@ static void spawn_pea(game_state_t *gs, int row, int col)
             gs->projectiles[i].row = row;
             /* Start at the right edge of the plant's cell */
             gs->projectiles[i].x_pixel = (col + 1) * CELL_WIDTH;
+            if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_PEA_FIRE);
             return;
         }
     }
@@ -189,7 +191,7 @@ static void spawn_pea(game_state_t *gs, int row, int col)
 }
 
 /* Update zombie positions, eating, and check for lose condition */
-static void update_zombies(game_state_t *gs)
+static void update_zombies(game_state_t *gs, audio_events_t *ev)
 {
     for (int i = 0; i < MAX_ZOMBIES; i++) {
         zombie_t *z = &gs->zombies[i];
@@ -209,6 +211,8 @@ static void update_zombies(game_state_t *gs)
                 /* Continue eating: deal damage on timer */
                 z->eat_timer--;
                 if (z->eat_timer <= 0) {
+                    /* Bite lands — emit ZOMBIE_BITE */
+                    if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_ZOMBIE_BITE);
                     gs->grid[z->row][col].hp--;
                     if (gs->grid[z->row][col].hp <= 0) {
                         gs->grid[z->row][col].type = PLANT_NONE;
@@ -263,7 +267,7 @@ static void update_projectiles(game_state_t *gs)
 }
 
 /* Per-plant-type update: fire peas, produce sun, or no-op */
-static void update_plants(game_state_t *gs)
+static void update_plants(game_state_t *gs, audio_events_t *ev)
 {
     for (int r = 0; r < GRID_ROWS; r++) {
         for (int c = 0; c < GRID_COLS; c++) {
@@ -274,7 +278,7 @@ static void update_plants(game_state_t *gs)
                 if (p->fire_cooldown > 0)
                     p->fire_cooldown--;
                 if (p->fire_cooldown == 0 && zombie_in_row(gs, r)) {
-                    spawn_pea(gs, r, c);
+                    spawn_pea(gs, r, c, ev);
                     p->fire_cooldown = PEASHOOTER_FIRE_COOLDOWN;
                 }
                 break;
@@ -298,7 +302,7 @@ static void update_plants(game_state_t *gs)
 }
 
 /* Check pea-zombie collisions */
-static void check_collisions(game_state_t *gs)
+static void check_collisions(game_state_t *gs, audio_events_t *ev)
 {
     for (int i = 0; i < MAX_PROJECTILES; i++) {
         projectile_t *p = &gs->projectiles[i];
@@ -317,12 +321,15 @@ static void check_collisions(game_state_t *gs)
             int p_right = p->x_pixel + PEA_SIZE;
 
             if (p_right >= z_left && p_left <= z_right) {
-                /* Hit! */
+                /* Hit! — emit PEA_HIT before deactivating pea */
+                if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_PEA_HIT);
                 z->hp -= PEA_DAMAGE;
                 p->active = 0;
 
-                if (z->hp <= 0)
+                if (z->hp <= 0) {
                     z->active = 0;
+                    if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_ZOMBIE_DEATH);
+                }
 
                 break; /* Each pea hits only one zombie */
             }
@@ -331,7 +338,7 @@ static void check_collisions(game_state_t *gs)
 }
 
 /* Spawn zombies from the wave table */
-static void update_spawning(game_state_t *gs)
+static void update_spawning(game_state_t *gs, audio_events_t *ev)
 {
     if (gs->wave_index >= TOTAL_ZOMBIES)
         return;
@@ -353,6 +360,7 @@ static void update_spawning(game_state_t *gs)
             gs->zombies[i].eat_timer = 0;
             gs->zombies_spawned++;
             gs->wave_index++;
+            if (ev) ev->flags |= PVZ_AUDIO_EVENT(PVZ_SFX_WAVE_START);
             return;
         }
     }
@@ -388,17 +396,16 @@ static void check_win(game_state_t *gs)
 
 void game_update(game_state_t *gs, audio_events_t *ev)
 {
-    (void)ev;  /* Task 4.4 will emit into ev */
     if (gs->state != STATE_PLAYING)
         return;
 
     gs->frame_count++;
 
     update_sun(gs);
-    update_spawning(gs);
-    update_plants(gs);
+    update_spawning(gs, ev);
+    update_plants(gs, ev);
     update_projectiles(gs);
-    update_zombies(gs);
-    check_collisions(gs);
+    update_zombies(gs, ev);
+    check_collisions(gs, ev);
     check_win(gs);
 }
