@@ -33,6 +33,16 @@ Hard split between FPGA and HPS, communicating via memory-mapped registers on th
 - **FPGA (SystemVerilog):** VGA timing generator, double-buffered frame buffer (or line buffer + tile/sprite ROMs, bubble-bobble style), sprite blitting engine that reads a sprite table populated by software at vsync, audio sample streaming to the Wolfson codec, and an Avalon-MM agent exposing the register interface. Frame buffer bit depth (8-bit indexed vs 4-bit vs tile-based) is an open design decision — see proposal §Display.
 - **HPS (Linux, C):** game loop, 5×9 grid state, plant/zombie/projectile logic, grid-level collision detection, sun economy, USB gamepad polling via libusb, and writes to the sprite table / audio registers each frame. The kernel driver exposes the Avalon registers as a misc device with `ioctl`s (follow the `vga_ball.c` pattern).
 
+**Audio (shipped via `v3-audio-engine`):** A second Avalon-slave peripheral
+`pvz_audio` at `0xff201000` (separate from `pvz_gpu`'s `0xff200000`) plays a
+looping PvZ theme song over the WM8731 codec during `STATE_PLAYING`. Hardware
+path: `voice_bgm` + 2× `voice_sfx` feed a 3-input clamp `mixer`, then the Intel
+`altera_up_avalon_audio` IP streams to the codec over I²S. BGM samples live in
+`bgm_rom.mem`; SFX samples in `sfx_rom.mem`; both are `$readmemh`-loaded BRAMs.
+`sfx_rom.mem` currently contains zero samples (silent SFX) — adding audible
+SFX is an asset-only change via `hw/audio/build_audio_mif.py` (see
+`hw/audio/README.md`).
+
 Every new hardware peripheral needs a matching Platform Designer component, a `set_module_assignment embeddedsw.dts.*` block in its `_hw.tcl` so it shows up in the generated dts as `compatible = "csee4840,<name>-1.0"`, and a kernel module whose `of_device_id` table matches that compatible string. This three-way tie (Verilog top-level, `_hw.tcl`, kernel driver) is the thing most likely to silently break.
 
 ### Gotchas worth remembering up front
@@ -46,6 +56,22 @@ Every new hardware peripheral needs a matching Platform Designer component, a `s
 - **Wave-table spawn discipline** (v3). `sw/game.c::game_init` seeds `gs->wave[]` from a compile-time template with ±60 frame jitter. `update_spawning` walks the array by `frame_count`. If every zombie slot is busy when the scheduled frame hits, the spawn is held — `wave_index` only advances once the spawn lands. Tests rely on this determinism under a fixed `srand` seed.
 - **`gs->selected_plant` drives placement** (v3). `game_place_plant` no longer hardcodes Peashooter; it reads `selected_plant ∈ {0,1,2}` and maps it to PLANT_PEASHOOTER / _SUNFLOWER / _WALLNUT. `main.c`'s `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT` handlers call `cycle_plant_prev` / `cycle_plant_next`, which modulo-3 the selection and no-op while game-over.
 - **Input auto-detect** (v3). `input_init()` takes no arguments. It enumerates `/dev/input/event0..31`, picks the first device advertising `BTN_SOUTH` as a gamepad, falls back to the first device advertising `KEY_SPACE`, and logs the chosen path. The new `input_action_t` enum (`INPUT_UP/_DOWN/_LEFT/_RIGHT/_PLACE/_DIG/_CYCLE_PREV/_CYCLE_NEXT/_QUIT/_NONE`) is the unified action space — game code never branches on device. On the board image, `modprobe xpad` is required for Xbox 360–compatible controllers; without it, auto-detect silently falls back to keyboard. `sw/test/test_input_devices` prints the enumeration verdict and is the first thing to run after plugging or unplugging a controller.
+- **Three-way compatible-string tie (second peripheral).** Like `pvz_gpu`:
+  `hw/pvz_audio_hw.tcl`'s `embeddedsw.dts.compatible "csee4840,pvz_audio-1.0"`,
+  the generated dtb, and `sw/pvz_audio_driver.c`'s `of_device_id` must
+  agree character-for-character.
+- **Audio event bus.** `game_update()` and `game_place_plant()` take an
+  `audio_events_t *ev` output parameter (NULL-safe). main.c clears
+  `ev.flags = 0` once per frame, passes the same struct to both calls, and
+  fans out set bits to `audio_play_sfx()` after game logic. game.c sets bits
+  for in-game events (PEA_FIRE/PEA_HIT/ZOMBIE_BITE/ZOMBIE_DEATH/PLANT_PLACE/
+  WAVE_START); main.c also emits GAME_OVER/VICTORY directly on state-edge
+  transitions.
+- **Scope A silent SFX ROM.** `sfx_rom.mem` is populated with zero samples
+  on purpose. The full ioctl → driver → register → voice → mixer path is
+  exercised; making SFX audible is a matter of running `make audio` with
+  real WAVs in `hw/audio/assets/` and committing the regenerated `.mem` +
+  `.svh` files.
 
 ## Build & deploy workflow
 
@@ -105,5 +131,8 @@ echo 8 > /proc/sys/kernel/printk   # show kernel module pr_info output on consol
 dmesg | tail                        # or read it from dmesg
 cat /proc/iomem                     # confirm the peripheral is mapped at ff20xxxx
 ls /proc/device-tree/sopc@0/...     # confirm the dtb entry is present
+dmesg | grep pvz_audio             # audio driver probe messages
+ls /dev/pvz_audio                  # should exist after insmod
+grep ff20 /proc/iomem              # audio peripheral region (ff201000)
 ```
 The board's serial console is `screen /dev/ttyUSB0 115200` from the workstation over the mini-USB cable.
