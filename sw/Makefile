@@ -11,14 +11,14 @@ else
 	KERNEL_SOURCE := /usr/src/linux-headers-$(shell uname -r)
 	PWD := $(shell pwd)
 
-default: module pvz test_shapes test_input test_input_devices test_game
+default: module pvz test_shapes test_input test_input_devices test_game test_audio
 
 module:
 	${MAKE} -C ${KERNEL_SOURCE} SUBDIRS=${PWD} modules
 
 clean:
 	${MAKE} -C ${KERNEL_SOURCE} SUBDIRS=${PWD} clean
-	${RM} pvz test_shapes test_input test_input_devices test_game
+	${RM} pvz test_shapes test_input test_input_devices test_game test_audio
 
 # Main game executable
 pvz: main.c game.c render.c input.c audio.c pvz.h game.h render.h input.h audio.h pvz_audio_driver.h
@@ -36,5 +36,8 @@ test_input_devices: test/test_input_devices.c input.h input.c
 
 test_game: test/test_game.c game.c game.h
 	gcc -Wall -O2 -o test_game test/test_game.c game.c
+
+test_audio: test/test_audio.c audio.c audio.h pvz.h pvz_audio_driver.h
+	gcc -Wall -O2 -o test_audio test/test_audio.c audio.c
 
 endif
