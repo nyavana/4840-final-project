@@ -87,7 +87,7 @@ set_interface_assignment avalon_slave embeddedsw.configuration.isPrintableDevice
 add_interface audio_out_l avalon_streaming start
 set_interface_property audio_out_l associatedClock clock
 set_interface_property audio_out_l associatedReset reset
-set_interface_property audio_out_l dataBitsPerSymbol 16
+set_interface_property audio_out_l dataBitsPerSymbol 8
 set_interface_property audio_out_l errorDescriptor ""
 set_interface_property audio_out_l firstSymbolInHighOrderBits true
 set_interface_property audio_out_l maxChannel 0
@@ -101,7 +101,7 @@ add_interface_port audio_out_l sample_valid_l  valid Output 1
 add_interface audio_out_r avalon_streaming start
 set_interface_property audio_out_r associatedClock clock
 set_interface_property audio_out_r associatedReset reset
-set_interface_property audio_out_r dataBitsPerSymbol 16
+set_interface_property audio_out_r dataBitsPerSymbol 8
 set_interface_property audio_out_r firstSymbolInHighOrderBits true
 set_interface_property audio_out_r maxChannel 0
 set_interface_property audio_out_r readyLatency 0
