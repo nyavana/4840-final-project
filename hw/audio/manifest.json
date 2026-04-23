@@ -1,0 +1,21 @@
+{
+  "format": {
+    "sample_rate_hz": 8000,
+    "bits_per_sample": 16,
+    "channels": 1
+  },
+  "bgm": {
+    "file": "assets/bgm_theme.wav"
+  },
+  "sfx": [
+    { "cue_id": 1, "name": "PEA_FIRE",     "file": "assets/sfx_pea_fire.wav" },
+    { "cue_id": 2, "name": "PEA_HIT",      "file": "assets/sfx_pea_hit.wav" },
+    { "cue_id": 3, "name": "ZOMBIE_BITE",  "file": "assets/sfx_zombie_bite.wav" },
+    { "cue_id": 4, "name": "ZOMBIE_DEATH", "file": "assets/sfx_zombie_death.wav" },
+    { "cue_id": 5, "name": "PLANT_PLACE",  "file": "assets/sfx_plant_place.wav" },
+    { "cue_id": 6, "name": "WAVE_START",   "file": "assets/sfx_wave_start.wav" },
+    { "cue_id": 7, "name": "GAME_OVER",    "file": "assets/sfx_game_over.wav" },
+    { "cue_id": 8, "name": "VICTORY",      "file": "assets/sfx_victory.wav" }
+  ],
+  "silent_samples_per_missing_cue": 2400
+}
