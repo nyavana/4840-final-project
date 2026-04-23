@@ -16,6 +16,15 @@ Format per entry:
 
 ---
 
+## Board verification of plant-selector HUD (Phase D gate 5.6)
+
+- **Severity**: minor
+- **Area**: render / game
+- **Found in phase**: D
+- **Reproduction**: Phase D gate requires visual confirmation on the DE1-SoC that the yellow highlight border moves between cards on cycle inputs, that place-plant respects the current selection, and that overlay screens hide cards as expected. Keyboard `[` / `]` bindings are not wired until Phase E, so today the Phase D cycle path can be exercised only once Phase E is on the board. Board not available in this worktree environment.
+- **Proposed fix**: After Phase E lands on the board, exercise `[` / `]` on the keyboard and LB / RB on the gamepad; confirm the yellow border moves and placement matches the active card.
+- **Status**: open
+
 ## Board verification of type-aware rendering (Phase C gate 4.6)
 
 - **Severity**: minor
