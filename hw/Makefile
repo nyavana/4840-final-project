@@ -101,3 +101,10 @@ quartus-clean :
 
 dtb-clean :
 	rm -rf $(DTS) $(DTB)
+
+# -----------------------------------------------------------
+# audio: regenerate bgm_rom.mem + sfx_rom.mem + sfx_offsets.svh from assets
+# -----------------------------------------------------------
+.PHONY : audio
+audio :
+	python3 audio/build_audio_mif.py
