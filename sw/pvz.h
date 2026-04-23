@@ -51,4 +51,19 @@ typedef struct {
 #define PVZ_WRITE_SHAPE    _IOW(PVZ_MAGIC, 2, pvz_shape_arg_t)
 #define PVZ_COMMIT_SHAPES  _IO(PVZ_MAGIC, 3)
 
+/* SFX cue ids — shared by game.c, main.c, test_game.c, and driver. */
+typedef enum {
+    PVZ_SFX_NONE         = 0,
+    PVZ_SFX_PEA_FIRE     = 1,
+    PVZ_SFX_PEA_HIT      = 2,
+    PVZ_SFX_ZOMBIE_BITE  = 3,
+    PVZ_SFX_ZOMBIE_DEATH = 4,
+    PVZ_SFX_PLANT_PLACE  = 5,
+    PVZ_SFX_WAVE_START   = 6,
+    PVZ_SFX_GAME_OVER    = 7,
+    PVZ_SFX_VICTORY      = 8,
+} pvz_sfx_cue_t;
+
+#define PVZ_AUDIO_EVENT(cue) (1u << ((cue) - 1))
+
 #endif /* _PVZ_H */
