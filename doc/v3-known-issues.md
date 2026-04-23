@@ -16,6 +16,15 @@ Format per entry:
 
 ---
 
+## Board verification of type-aware rendering (Phase C gate 4.6)
+
+- **Severity**: minor
+- **Area**: render
+- **Found in phase**: C
+- **Reproduction**: The Phase C gate requires a visual check on the DE1-SoC that each plant type renders with the right shape/colour (peashooter sprite, yellow circle sunflower, brown circle wall-nut) and each zombie type renders with the right rectangle colour (red basic, orange conehead, gray buckethead). Board not available in this worktree environment, so the visual check has not run.
+- **Proposed fix**: Cross-compile, deploy, hand-place one of each plant via debug path, spawn one of each zombie via debug path, confirm colours and sizes match `specs/game-rendering/spec.md`. The wave template already spawns all three zombie types during a natural playthrough, so confirming via the wave is also acceptable.
+- **Status**: open
+
 ## ModelSim verification of shape-table growth (Phase A gate 2.5)
 
 - **Severity**: minor
