@@ -22,7 +22,11 @@ module voice_sfx #(
     input  logic [3:0]          cue_id,
     output logic signed [15:0]  sample
 );
+`ifdef TB_VOICE_SFX
+    `include "tb/fixtures/sfx_offsets_test.svh"
+`else
     `include "sfx_offsets.svh"    // defines SFX_START[1:8], SFX_END[1:8]
+`endif
 
     logic [AW-1:0] addr, stop_addr;
     logic          playing, done;
