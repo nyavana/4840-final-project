@@ -55,6 +55,12 @@ static void process_input(game_state_t *gs)
         case INPUT_D:
             game_remove_plant(gs);
             break;
+        case INPUT_CYCLE_PREV:
+            cycle_plant_prev(gs);
+            break;
+        case INPUT_CYCLE_NEXT:
+            cycle_plant_next(gs);
+            break;
         case INPUT_ESC:
             gs->state = -1; /* signal exit */
             return;

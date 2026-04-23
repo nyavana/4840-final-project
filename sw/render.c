@@ -192,6 +192,35 @@ static void render_projectiles(const game_state_t *gs)
         hide_shape(IDX_PEA_START + i);
 }
 
+static int card_color(int slot)
+{
+    switch (slot) {
+    case 0:  return COL_GREEN;   /* Peashooter */
+    case 1:  return COL_YELLOW;  /* Sunflower */
+    case 2:  return COL_BROWN;   /* Wall-nut */
+    default: return COL_BLACK;
+    }
+}
+
+static void render_plant_cards(const game_state_t *gs)
+{
+    /* Highlight drawn first (lower index) so the card above it leaves
+     * a 2-pixel yellow border around the selected card only. */
+    int sel = gs->selected_plant;
+    if (sel < 0 || sel >= IDX_CARD_COUNT)
+        sel = 0;
+    int hl_x = CARD_X0 + sel * CARD_PITCH + HIGHLIGHT_OFFSET_X;
+    write_shape(IDX_CARD_HIGHLIGHT, SHAPE_RECT, 1,
+                hl_x, HIGHLIGHT_Y, HIGHLIGHT_W, HIGHLIGHT_H, COL_YELLOW);
+
+    for (int i = 0; i < IDX_CARD_COUNT; i++) {
+        int idx = IDX_CARD_START + i;
+        int x = CARD_X0 + i * CARD_PITCH;
+        write_shape(idx, SHAPE_RECT, 1, x, CARD_Y, CARD_W, CARD_H,
+                    card_color(i));
+    }
+}
+
 static void hide_plant_cards(void)
 {
     hide_shape(IDX_CARD_HIGHLIGHT);
@@ -266,7 +295,7 @@ void render_frame(const game_state_t *gs)
         render_zombies(gs);
         render_projectiles(gs);
         render_cursor(gs);
-        hide_plant_cards(); /* Phase D re-enables via render_plant_cards */
+        render_plant_cards(gs);
         render_hud(gs);
     } else {
         for (int i = 0; i < IDX_PLANT_COUNT; i++)

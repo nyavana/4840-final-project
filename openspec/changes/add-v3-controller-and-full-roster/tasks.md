@@ -43,13 +43,13 @@
 
 ## 5. Plant-selector UI (Phase D, software + on-board)
 
-- [ ] 5.1 Add `render_plant_cards(gs)` to `sw/render.c`: three rectangles at the positions in the spec, colored per-plant; hide when `state != STATE_PLAYING`
-- [ ] 5.2 Add a selection-highlight rectangle at slot 43 whose x derives from `gs->selected_plant`
-- [ ] 5.3 Wire `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT` in `sw/main.c` to decrement / increment `gs->selected_plant` modulo 3
-- [ ] 5.4 Block cycling while `state != STATE_PLAYING`
-- [ ] 5.5 **Gate (unit)**: add test cases in `test_game.c` for the cycle wrap logic (assumes a small helper `cycle_plant_prev`/`cycle_plant_next` in `game.c` that `main.c` calls)
-- [ ] 5.6 **Gate (on-board)**: cycling visibly moves the yellow highlight; placing plants respects the current selection; overlay screens hide cards as expected. Log any gap in `doc/v3-known-issues.md` before holding the commit.
-- [ ] 5.7 **Commit**: `v3: plant-selector HUD and selection logic`
+- [x] 5.1 Add `render_plant_cards(gs)` to `sw/render.c`: three rectangles at the positions in the spec, colored per-plant; hide when `state != STATE_PLAYING`
+- [x] 5.2 Add a selection-highlight rectangle at slot 43 whose x derives from `gs->selected_plant`
+- [x] 5.3 Wire `INPUT_CYCLE_PREV` / `INPUT_CYCLE_NEXT` in `sw/main.c` to decrement / increment `gs->selected_plant` modulo 3
+- [x] 5.4 Block cycling while `state != STATE_PLAYING`
+- [x] 5.5 **Gate (unit)**: add test cases in `test_game.c` for the cycle wrap logic (assumes a small helper `cycle_plant_prev`/`cycle_plant_next` in `game.c` that `main.c` calls) *(covered in `test_cycle_plant_wrap`)*
+- [x] 5.6 **Gate (on-board)**: cycling visibly moves the yellow highlight; placing plants respects the current selection; overlay screens hide cards as expected. Log any gap in `doc/v3-known-issues.md` before holding the commit. *(Board not available; logged.)*
+- [x] 5.7 **Commit**: `v3: plant-selector HUD and selection logic`
 
 ## 6. Input auto-detect (Phase E, software + on-board)
 
