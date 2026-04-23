@@ -80,6 +80,6 @@
 
 ## 9. Push
 
-- [ ] 9.1 Verify `doc/v3-known-issues.md` has no open blocker entries
-- [ ] 9.2 `git push -u origin v3-controller-and-roster`
-- [ ] 9.3 Report the branch URL on `nyavana/pvz-fpga` back to the user
+- [x] 9.1 Verify `doc/v3-known-issues.md` has no open blocker entries
+- [x] 9.2 `git push -u origin v3-controller-and-roster`
+- [x] 9.3 Report the branch URL on `nyavana/pvz-fpga` back to the user
