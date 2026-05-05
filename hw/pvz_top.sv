@@ -1,26 +1,36 @@
 /*
- * PvZ GPU — Avalon-MM peripheral for Plants vs Zombies VGA display
+ * PvZ GPU — top-level Avalon-MM peripheral
  *
- * Wires together: vga_counters, linebuffer, bg_grid, shape_table,
- * shape_renderer, and color_palette.
+ * Wires together VGA timing, background grid, sprite ROM, and the
+ * entity drawer.  Holds the entity register file that software writes
+ * via Avalon.
  *
- * Register map (32-bit, word-aligned, byte offsets from CPU):
- *   0x00  BG_CELL      - [12:8]=color, [4:3]=row, [2:0]=col
- *   0x04  SHAPE_ADDR   - [5:0]=shape index
- *   0x08  SHAPE_DATA0  - [1:0]=type, [2]=visible, [12:3]=x, [21:13]=y
- *   0x0C  SHAPE_DATA1  - [8:0]=w, [17:9]=h, [25:18]=color
- *   0x10  SHAPE_COMMIT - write any nonzero to commit
+ * Register map (32-bit words, byte offset = 4 * word index):
+ *   word  0..31  PVZ_PLANT[i]   bit 0 = peashooter present at cell i
+ *                                (i = row*8 + col, row in 0..3, col in 0..7)
+ *   word 32..39  PVZ_ZOMBIE[i]  bit 31 = alive
+ *                                bits [9:0]   = x_pixel (0..639)
+ *                                bits [11:10] = row (0..3)
+ *   word 40..47  PVZ_PEA[i]     same encoding as zombie
+ *   word 48      PVZ_CURSOR     bit 31 = visible
+ *                                bits [4:2] = col (0..7)
+ *                                bits [1:0] = row (0..3)
+ *   word 49      PVZ_SUN        bits [13:0] = sun value (reserved)
  *
- * Avalon uses word addresses internally (32-bit writedata -> address is
- * word offset 0-4). CPU uses byte offsets (base + 4*N).
+ * Avalon notes:
+ *   - The address port is in WORDS (qsys addressUnits = WORDS) so a
+ *     CPU byte offset N maps to address = N >> 2.
+ *   - Writes take effect on the next clock; no commit handshake.
+ *   - There is no vsync latching, so a write that races the scan can
+ *     produce one frame of tearing.  Acceptable for ~60 Hz game state.
  */
 
 module pvz_top(
     input  logic        clk,
     input  logic        reset,
 
-    // Avalon-MM slave interface
-    input  logic [2:0]  address,      // word offset (0-4)
+    // Avalon-MM slave
+    input  logic [5:0]  address,    // word index, 0..49 used, 64 max
     input  logic [31:0] writedata,
     input  logic        write,
     input  logic        chipselect,
@@ -39,175 +49,160 @@ module pvz_top(
     logic [9:0]  vcount;
 
     vga_counters counters(
-        .clk50(clk),
-        .reset(reset),
-        .hcount(hcount),
-        .vcount(vcount),
-        .VGA_CLK(VGA_CLK),
-        .VGA_HS(VGA_HS),
-        .VGA_VS(VGA_VS),
+        .clk50      (clk),
+        .reset      (reset),
+        .hcount     (hcount),
+        .vcount     (vcount),
+        .VGA_CLK    (VGA_CLK),
+        .VGA_HS     (VGA_HS),
+        .VGA_VS     (VGA_VS),
         .VGA_BLANK_n(VGA_BLANK_n),
-        .VGA_SYNC_n(VGA_SYNC_n)
+        .VGA_SYNC_n (VGA_SYNC_n)
     );
 
-    // Pixel coordinates from hcount
-    wire [9:0] pixel_x = hcount[10:1];
-    wire [9:0] pixel_y = vcount[9:0];
+    wire [9:0] px = hcount[10:1];
+    wire [9:0] py = vcount;
 
     // ---------------------------------------------------------------
-    // Vsync latch signal: pulse at start of vertical blanking
+    // Entity register file
     // ---------------------------------------------------------------
-    logic vsync_latch;
-    assign vsync_latch = (vcount == 10'd480) && (hcount == 11'd0);
+    // Plants: one bit per grid cell (32 cells)
+    logic [31:0] plant_present;
 
-    // ---------------------------------------------------------------
-    // Linebuffer swap: pulse at hsync (end of each active line)
-    // Swap when we transition from active to blanking on each line
-    // ---------------------------------------------------------------
-    logic lb_swap;
-    assign lb_swap = (hcount == 11'd0) && (vcount < 10'd480);
+    // Zombies and peas: 8 each.  Alive bits packed; x and row also
+    // packed into wide buses for handing to entity_drawer.
+    logic [7:0]  zombie_alive, pea_alive;
+    logic [9:0]  zombie_x   [0:7];
+    logic [1:0]  zombie_row [0:7];
+    logic [9:0]  pea_x      [0:7];
+    logic [1:0]  pea_row    [0:7];
 
-    // ---------------------------------------------------------------
-    // Render start: begin rendering the NEXT scanline
-    // Start right after swap, during the new line's display
-    // ---------------------------------------------------------------
-    logic render_start;
-    assign render_start = (hcount == 11'd2) && (vcount < 10'd480);
-
-    // ---------------------------------------------------------------
-    // Linebuffer
-    // ---------------------------------------------------------------
-    logic        lb_wr_en;
-    logic [9:0]  lb_wr_addr;
-    logic [7:0]  lb_wr_data;
-    logic [7:0]  lb_rd_data;
-
-    linebuffer lb_inst(
-        .clk(clk),
-        .reset(reset),
-        .wr_en(lb_wr_en),
-        .wr_addr(lb_wr_addr),
-        .wr_data(lb_wr_data),
-        .rd_addr(pixel_x),
-        .rd_data(lb_rd_data),
-        .swap(lb_swap)
-    );
-
-    // ---------------------------------------------------------------
-    // Background grid
-    // ---------------------------------------------------------------
-    logic        bg_wr_en;
-    logic [2:0]  bg_wr_col;
-    logic [1:0]  bg_wr_row;
-    logic [7:0]  bg_wr_color;
-
-    logic [9:0]  bg_query_px, bg_query_py;
-    logic [7:0]  bg_query_color;
-
-    bg_grid bg_inst(
-        .clk(clk),
-        .reset(reset),
-        .wr_en(bg_wr_en),
-        .wr_col(bg_wr_col),
-        .wr_row(bg_wr_row),
-        .wr_color(bg_wr_color),
-        .vsync_latch(vsync_latch),
-        .px(bg_query_px),
-        .py(bg_query_py),
-        .color_out(bg_query_color)
-    );
-
-    // ---------------------------------------------------------------
-    // Shape table
-    // ---------------------------------------------------------------
-    logic        st_addr_wr, st_data0_wr, st_data1_wr, st_commit_wr;
-    logic [5:0]  st_addr_data;
-    logic [31:0] st_data0, st_data1;
-
-    logic [5:0]  st_rd_index;
-    logic [1:0]  st_rd_type;
-    logic        st_rd_visible;
-    logic [9:0]  st_rd_x;
-    logic [8:0]  st_rd_y, st_rd_w, st_rd_h;
-    logic [7:0]  st_rd_color;
-
-    shape_table st_inst(
-        .clk(clk),
-        .reset(reset),
-        .addr_wr(st_addr_wr),
-        .addr_data(st_addr_data),
-        .data0_wr(st_data0_wr),
-        .data0(st_data0),
-        .data1_wr(st_data1_wr),
-        .data1(st_data1),
-        .commit_wr(st_commit_wr),
-        .vsync_latch(vsync_latch),
-        .rd_index(st_rd_index),
-        .rd_type(st_rd_type),
-        .rd_visible(st_rd_visible),
-        .rd_x(st_rd_x),
-        .rd_y(st_rd_y),
-        .rd_w(st_rd_w),
-        .rd_h(st_rd_h),
-        .rd_color(st_rd_color)
-    );
-
-    // ---------------------------------------------------------------
-    // Sprite ROM (32x32 peashooter, 1024x8-bit)
-    // ---------------------------------------------------------------
-    logic [9:0] sprite_rd_addr;
-    logic [7:0] sprite_rd_pixel;
-
-    sprite_rom sprite_inst(
-        .clk(clk),
-        .addr(sprite_rd_addr),
-        .pixel(sprite_rd_pixel)
-    );
-
-    // ---------------------------------------------------------------
-    // Shape renderer
-    // ---------------------------------------------------------------
+    // Cursor + sun
+    logic        cursor_visible;
+    logic [2:0]  cursor_col;
+    logic [1:0]  cursor_row;
     /* verilator lint_off UNUSED */
-    logic render_done;
+    logic [13:0] sun_value;
     /* verilator lint_on UNUSED */
 
-    shape_renderer renderer(
-        .clk(clk),
-        .reset(reset),
-        .render_start(render_start),
-        .scanline(pixel_y),
-        .render_done(render_done),
-        .bg_px(bg_query_px),
-        .bg_py(bg_query_py),
-        .bg_color(bg_query_color),
-        .shape_index(st_rd_index),
-        .shape_type(st_rd_type),
-        .shape_visible(st_rd_visible),
-        .shape_x(st_rd_x),
-        .shape_y(st_rd_y),
-        .shape_w(st_rd_w),
-        .shape_h(st_rd_h),
-        .shape_color(st_rd_color),
-        .sprite_rd_addr(sprite_rd_addr),
-        .sprite_rd_pixel(sprite_rd_pixel),
-        .lb_wr_en(lb_wr_en),
-        .lb_wr_addr(lb_wr_addr),
-        .lb_wr_data(lb_wr_data)
+    // ---------------------------------------------------------------
+    // Avalon-MM write decode
+    // ---------------------------------------------------------------
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            plant_present  <= 32'd0;
+            zombie_alive   <= 8'd0;
+            pea_alive      <= 8'd0;
+            cursor_visible <= 1'b0;
+            cursor_col     <= 3'd0;
+            cursor_row     <= 2'd0;
+            sun_value      <= 14'd0;
+            for (int i = 0; i < 8; i++) begin
+                zombie_x[i]   <= 10'd0;
+                zombie_row[i] <= 2'd0;
+                pea_x[i]      <= 10'd0;
+                pea_row[i]    <= 2'd0;
+            end
+        end else if (chipselect && write) begin
+            // Plant cells: word 0..31  -> plant_present[address[4:0]]
+            if (address < 6'd32) begin
+                plant_present[address[4:0]] <= writedata[0];
+            end
+            // Zombies: word 32..39
+            else if (address < 6'd40) begin
+                zombie_alive[address[2:0]] <= writedata[31];
+                zombie_x[address[2:0]]     <= writedata[9:0];
+                zombie_row[address[2:0]]   <= writedata[11:10];
+            end
+            // Peas: word 40..47
+            else if (address < 6'd48) begin
+                pea_alive[address[2:0]] <= writedata[31];
+                pea_x[address[2:0]]     <= writedata[9:0];
+                pea_row[address[2:0]]   <= writedata[11:10];
+            end
+            // Cursor: word 48
+            else if (address == 6'd48) begin
+                cursor_visible <= writedata[31];
+                cursor_col     <= writedata[4:2];
+                cursor_row     <= writedata[1:0];
+            end
+            // Sun: word 49
+            else if (address == 6'd49) begin
+                sun_value <= writedata[13:0];
+            end
+        end
+    end
+
+    // Pack arrays into wide buses for the drawer module
+    logic [79:0] zombie_x_packed, pea_x_packed;
+    logic [15:0] zombie_row_packed, pea_row_packed;
+    genvar gi;
+    generate
+        for (gi = 0; gi < 8; gi++) begin : pack_entities
+            assign zombie_x_packed[gi*10 +: 10]    = zombie_x[gi];
+            assign zombie_row_packed[gi*2 +: 2]    = zombie_row[gi];
+            assign pea_x_packed[gi*10 +: 10]       = pea_x[gi];
+            assign pea_row_packed[gi*2 +: 2]       = pea_row[gi];
+        end
+    endgenerate
+
+    // ---------------------------------------------------------------
+    // Background grid (combinational, no state)
+    // ---------------------------------------------------------------
+    logic [7:0] bg_color;
+    bg_grid bg_inst(
+        .px       (px),
+        .py       (py),
+        .color_out(bg_color)
     );
 
     // ---------------------------------------------------------------
-    // Color palette: convert linebuffer 8-bit index to 24-bit RGB
+    // Sprite ROM (32x32 peashooter, 1024 bytes, 1-cycle read latency)
+    // ---------------------------------------------------------------
+    logic [9:0] sprite_addr;
+    logic [7:0] sprite_pixel;
+    sprite_rom sprite_inst(
+        .clk  (clk),
+        .addr (sprite_addr),
+        .pixel(sprite_pixel)
+    );
+
+    // ---------------------------------------------------------------
+    // Entity drawer: produces the final pixel color
+    // ---------------------------------------------------------------
+    logic [7:0] pixel_color;
+    entity_drawer drawer_inst(
+        .clk             (clk),
+        .reset           (reset),
+        .px              (px),
+        .py              (py),
+        .bg_color        (bg_color),
+        .plant_present   (plant_present),
+        .zombie_alive    (zombie_alive),
+        .zombie_x_packed (zombie_x_packed),
+        .zombie_row_packed(zombie_row_packed),
+        .pea_alive       (pea_alive),
+        .pea_x_packed    (pea_x_packed),
+        .pea_row_packed  (pea_row_packed),
+        .cursor_visible  (cursor_visible),
+        .cursor_col      (cursor_col),
+        .cursor_row      (cursor_row),
+        .sprite_rd_addr  (sprite_addr),
+        .sprite_rd_pixel (sprite_pixel),
+        .color_out       (pixel_color)
+    );
+
+    // ---------------------------------------------------------------
+    // Palette: 8-bit color index -> 24-bit RGB.  Black during blanking.
     // ---------------------------------------------------------------
     logic [7:0] pal_r, pal_g, pal_b;
-
     color_palette pal_inst(
-        .index(lb_rd_data),
-        .r(pal_r),
-        .g(pal_g),
-        .b(pal_b)
+        .index(pixel_color),
+        .r    (pal_r),
+        .g    (pal_g),
+        .b    (pal_b)
     );
 
-    // VGA output: palette color during active, black during blanking
     always_comb begin
         if (VGA_BLANK_n) begin
             VGA_R = pal_r;
@@ -217,50 +212,6 @@ module pvz_top(
             VGA_R = 8'h00;
             VGA_G = 8'h00;
             VGA_B = 8'h00;
-        end
-    end
-
-    // ---------------------------------------------------------------
-    // Avalon-MM register decode
-    // ---------------------------------------------------------------
-    always_comb begin
-        bg_wr_en    = 1'b0;
-        bg_wr_col   = 3'd0;
-        bg_wr_row   = 2'd0;
-        bg_wr_color = 8'd0;
-        st_addr_wr  = 1'b0;
-        st_addr_data = 6'd0;
-        st_data0_wr = 1'b0;
-        st_data0    = 32'd0;
-        st_data1_wr = 1'b0;
-        st_data1    = 32'd0;
-        st_commit_wr = 1'b0;
-
-        if (chipselect && write) begin
-            case (address)
-                3'd0: begin // BG_CELL (byte offset 0x00)
-                    bg_wr_en    = 1'b1;
-                    bg_wr_col   = writedata[2:0];
-                    bg_wr_row   = writedata[4:3];
-                    bg_wr_color = writedata[15:8];
-                end
-                3'd1: begin // SHAPE_ADDR (byte offset 0x04)
-                    st_addr_wr   = 1'b1;
-                    st_addr_data = writedata[5:0];
-                end
-                3'd2: begin // SHAPE_DATA0 (byte offset 0x08)
-                    st_data0_wr = 1'b1;
-                    st_data0    = writedata;
-                end
-                3'd3: begin // SHAPE_DATA1 (byte offset 0x0C)
-                    st_data1_wr = 1'b1;
-                    st_data1    = writedata;
-                end
-                3'd4: begin // SHAPE_COMMIT (byte offset 0x10)
-                    st_commit_wr = (writedata != 32'd0);
-                end
-                default: ;
-            endcase
         end
     end
 

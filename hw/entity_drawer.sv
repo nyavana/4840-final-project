@@ -1,0 +1,228 @@
+/*
+ * Entity drawer — "racing the beam" combinational pixel renderer
+ *
+ * For every VGA pixel (px, py), determines the final color by checking
+ * which game entity (if any) covers that pixel.  No frame buffer, no
+ * line buffer, no FSM: the rendering happens in lock-step with the VGA
+ * scan.
+ *
+ * Layering (low to high; later overwrites earlier):
+ *   1. bg          (lawn checker, from bg_grid)
+ *   2. plant       (32x32 sprite ROM, scaled 2x to fill 64x64 cell)
+ *   3. pea         (small bright-green square)
+ *   4. zombie      (red rectangle)
+ *   5. cursor      (yellow border around cursor cell)
+ *
+ * Sprite ROM has 1 clock of read latency.  Stage 1 issues the address
+ * combinationally, stage 2 (one cycle later) merges the ROM output with
+ * the registered overlay hits.  Final color is registered so the VGA
+ * data path stays clean.
+ *
+ * Layout constants (must match bg_grid.sv and software):
+ *   GRID_X = 64, GRID_Y = 112, CELL = 64, GRID_COLS = 8, GRID_ROWS = 4
+ */
+
+module entity_drawer(
+    input  logic        clk,
+    input  logic        reset,
+
+    // Pixel coordinates from VGA scan
+    input  logic [9:0]  px,
+    input  logic [9:0]  py,
+
+    // Background color for this pixel (combinational from bg_grid)
+    input  logic [7:0]  bg_color,
+
+    // ---------- Entity registers (driven by pvz_top register file) ----------
+    // Plants: one bit per grid cell, bit (row*8+col).
+    input  logic [31:0] plant_present,
+
+    // Up to 8 zombies / 8 peas. Packed so we don't need unpacked-array
+    // ports (more portable across synthesis tools).
+    //   zombie_x[i]   = pixel x position (0..639)   width 10
+    //   zombie_row[i] = grid row (0..3)             width 2
+    //   zombie_alive  = bit i high if zombie i is on screen
+    input  logic [7:0]  zombie_alive,
+    input  logic [79:0] zombie_x_packed,    // {zombie_x[7], ..., zombie_x[0]}
+    input  logic [15:0] zombie_row_packed,  // {zombie_row[7], ..., zombie_row[0]}
+
+    input  logic [7:0]  pea_alive,
+    input  logic [79:0] pea_x_packed,
+    input  logic [15:0] pea_row_packed,
+
+    // Cursor: a hollow yellow border around one cell
+    input  logic        cursor_visible,
+    input  logic [2:0]  cursor_col,
+    input  logic [1:0]  cursor_row,
+
+    // Sprite ROM read interface (1-cycle read latency)
+    output logic [9:0]  sprite_rd_addr,
+    input  logic [7:0]  sprite_rd_pixel,
+
+    // Final pixel color (registered, 1 cycle of latency vs px/py)
+    output logic [7:0]  color_out
+);
+
+    // ---------------------------------------------------------------
+    // Color indices (must match color_palette.sv)
+    // ---------------------------------------------------------------
+    localparam logic [7:0] COL_YELLOW       = 8'd4;
+    localparam logic [7:0] COL_RED          = 8'd5;
+    localparam logic [7:0] COL_BRIGHT_GREEN = 8'd9;
+    localparam logic [7:0] COL_TRANSPARENT  = 8'hFF;
+
+    // Layout constants (mirror bg_grid.sv)
+    localparam logic [9:0] GRID_X     = 10'd64;
+    localparam logic [9:0] GRID_Y     = 10'd112;
+    localparam logic [9:0] CELL       = 10'd64;
+    localparam int         GRID_COLS  = 8;
+    localparam int         GRID_ROWS  = 4;
+
+    // Entity sprite sizes
+    localparam logic [9:0] ZOMBIE_W = 10'd32;
+    localparam logic [9:0] ZOMBIE_H = 10'd64;
+    localparam logic [9:0] PEA_SIZE = 10'd8;
+    localparam logic [9:0] CURSOR_BORDER = 10'd4;
+
+    // ---------------------------------------------------------------
+    // Unpack the zombie/pea arrays into indexable arrays
+    // ---------------------------------------------------------------
+    logic [9:0] zombie_x   [0:7];
+    logic [1:0] zombie_row [0:7];
+    logic [9:0] pea_x      [0:7];
+    logic [1:0] pea_row    [0:7];
+
+    genvar gi;
+    generate
+        for (gi = 0; gi < 8; gi++) begin : unpack_entities
+            assign zombie_x[gi]   = zombie_x_packed[gi*10 +: 10];
+            assign zombie_row[gi] = zombie_row_packed[gi*2 +: 2];
+            assign pea_x[gi]      = pea_x_packed[gi*10 +: 10];
+            assign pea_row[gi]    = pea_row_packed[gi*2 +: 2];
+        end
+    endgenerate
+
+    // ---------------------------------------------------------------
+    // Stage 1: figure out which grid cell the current pixel is in,
+    // and issue the sprite ROM read for that cell.
+    // ---------------------------------------------------------------
+    wire in_grid_x = (px >= GRID_X) && (px < GRID_X + 10'd512);
+    wire in_grid_y = (py >= GRID_Y) && (py < GRID_Y + 10'd256);
+    wire in_grid   = in_grid_x && in_grid_y;
+
+    // Coordinates within the grid (high bit unused inside grid)
+    /* verilator lint_off UNUSED */
+    wire [9:0] gx = px - GRID_X;
+    wire [9:0] gy = py - GRID_Y;
+    /* verilator lint_on UNUSED */
+
+    // Cell index and within-cell pixel (cells are 64 px = 2^6).  The
+    // sprite ROM only uses the upper 5 bits of in_cell_{x,y} because we
+    // 2x-downscale a 32x32 source into a 64x64 cell.
+    wire [2:0] cell_col  = gx[8:6];
+    wire [1:0] cell_row  = gy[7:6];
+    /* verilator lint_off UNUSED */
+    wire [5:0] in_cell_x = gx[5:0];
+    wire [5:0] in_cell_y = gy[5:0];
+    /* verilator lint_on UNUSED */
+
+    // Plant bit for this cell (false if outside grid)
+    wire [4:0] plant_idx = {cell_row, cell_col};
+    wire plant_here = in_grid && plant_present[plant_idx];
+
+    // Sprite ROM address: 2x downscale (32x32 ROM -> 64x64 cell).
+    // Each ROM row repeats for 2 screen rows; same for columns.
+    assign sprite_rd_addr = {in_cell_y[5:1], in_cell_x[5:1]};
+
+    // ---------------------------------------------------------------
+    // Stage 1: combinational hit detection for non-sprite entities
+    // ---------------------------------------------------------------
+    logic zombie_hit_comb;
+    always_comb begin
+        zombie_hit_comb = 1'b0;
+        for (int i = 0; i < 8; i++) begin
+            logic [9:0] zy_top;
+            zy_top = GRID_Y + ({8'd0, zombie_row[i]} << 6);  // row * 64
+            if (zombie_alive[i] &&
+                px >= zombie_x[i] && px < zombie_x[i] + ZOMBIE_W &&
+                py >= zy_top && py < zy_top + ZOMBIE_H)
+                zombie_hit_comb = 1'b1;
+        end
+    end
+
+    logic pea_hit_comb;
+    always_comb begin
+        pea_hit_comb = 1'b0;
+        for (int i = 0; i < 8; i++) begin
+            // Center the pea vertically in its row (row*64 + 28..36)
+            logic [9:0] py_top;
+            py_top = GRID_Y + ({8'd0, pea_row[i]} << 6) + 10'd28;
+            if (pea_alive[i] &&
+                px >= pea_x[i] && px < pea_x[i] + PEA_SIZE &&
+                py >= py_top && py < py_top + PEA_SIZE)
+                pea_hit_comb = 1'b1;
+        end
+    end
+
+    // Cursor: hollow border around the cursor cell
+    logic cursor_hit_comb;
+    always_comb begin
+        logic [9:0] cur_left, cur_top;
+        cur_left = GRID_X + ({7'd0, cursor_col} << 6);
+        cur_top  = GRID_Y + ({8'd0, cursor_row} << 6);
+        cursor_hit_comb = 1'b0;
+        if (cursor_visible &&
+            px >= cur_left && px < cur_left + CELL &&
+            py >= cur_top  && py < cur_top  + CELL) begin
+            // On border? (within CURSOR_BORDER pixels of any edge)
+            if ( (px - cur_left)        < CURSOR_BORDER ||
+                 (cur_left + CELL - px) <= CURSOR_BORDER ||
+                 (py - cur_top)         < CURSOR_BORDER ||
+                 (cur_top  + CELL - py) <= CURSOR_BORDER )
+                cursor_hit_comb = 1'b1;
+        end
+    end
+
+    // ---------------------------------------------------------------
+    // Stage 2: register everything to align with the 1-cycle sprite
+    // ROM read latency.  Then mux to produce final color.
+    // ---------------------------------------------------------------
+    logic [7:0] bg_color_d;
+    logic       plant_here_d;
+    logic       zombie_hit_d;
+    logic       pea_hit_d;
+    logic       cursor_hit_d;
+
+    always_ff @(posedge clk or posedge reset) begin
+        if (reset) begin
+            bg_color_d   <= 8'd0;
+            plant_here_d <= 1'b0;
+            zombie_hit_d <= 1'b0;
+            pea_hit_d    <= 1'b0;
+            cursor_hit_d <= 1'b0;
+        end else begin
+            bg_color_d   <= bg_color;
+            plant_here_d <= plant_here;
+            zombie_hit_d <= zombie_hit_comb;
+            pea_hit_d    <= pea_hit_comb;
+            cursor_hit_d <= cursor_hit_comb;
+        end
+    end
+
+    // Final mux: paint layers from bottom to top.  sprite_rd_pixel is
+    // valid this cycle (issued from address registered last cycle by
+    // the sprite ROM, which has 1-cycle latency).  Total pipeline:
+    // 1 clock from (px, py) to color_out.
+    always_comb begin
+        color_out = bg_color_d;
+        if (plant_here_d && sprite_rd_pixel != COL_TRANSPARENT)
+            color_out = sprite_rd_pixel;
+        if (pea_hit_d)
+            color_out = COL_BRIGHT_GREEN;
+        if (zombie_hit_d)
+            color_out = COL_RED;
+        if (cursor_hit_d)
+            color_out = COL_YELLOW;
+    end
+
+endmodule
