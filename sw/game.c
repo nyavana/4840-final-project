@@ -70,6 +70,16 @@ static int zombie_in_row(game_state_t *gs, int row)
     return 0;
 }
 
+/* Convert a zombie's screen x to a grid column.
+ * Returns -1 if the zombie is not over the lawn. */
+static int zombie_col(int x_pixel)
+{
+    int gx = x_pixel - GAME_AREA_X;
+    if (gx < 0 || gx >= GRID_COLS * CELL_SIZE)
+        return -1;
+    return gx / CELL_SIZE;
+}
+
 /* Spawn a new pea projectile at the given grid cell */
 static void spawn_pea(game_state_t *gs, int row, int col)
 {
@@ -78,7 +88,8 @@ static void spawn_pea(game_state_t *gs, int row, int col)
             gs->projectiles[i].active = 1;
             gs->projectiles[i].row = row;
             /* Start at the right edge of the plant's cell */
-            gs->projectiles[i].x_pixel = (col + 1) * CELL_WIDTH;
+            gs->projectiles[i].x_pixel =
+                GAME_AREA_X + (col + 1) * CELL_SIZE;
             return;
         }
     }
@@ -96,9 +107,8 @@ static void update_zombies(game_state_t *gs)
         if (z->eating) {
             /* Re-check that the plant still exists (another zombie may
              * have destroyed it) */
-            int col = z->x_pixel / CELL_WIDTH;
-            if (col < 0 || col >= GRID_COLS ||
-                gs->grid[z->row][col].type == PLANT_NONE) {
+            int col = zombie_col(z->x_pixel);
+            if (col < 0 || gs->grid[z->row][col].type == PLANT_NONE) {
                 z->eating = 0;
                 z->eat_timer = 0;
                 /* Fall through to movement below */
@@ -126,16 +136,15 @@ static void update_zombies(game_state_t *gs)
             z->move_counter = 0;
             z->x_pixel--;
 
-            /* Lose condition: zombie reached left edge */
-            if (z->x_pixel <= 0) {
+            /* Lose condition: zombie reached the lawn's left edge */
+            if (z->x_pixel <= GAME_AREA_X) {
                 gs->state = STATE_LOSE;
                 return;
             }
 
             /* Check for plant collision after moving */
-            int col = z->x_pixel / CELL_WIDTH;
-            if (col >= 0 && col < GRID_COLS &&
-                gs->grid[z->row][col].type != PLANT_NONE) {
+            int col = zombie_col(z->x_pixel);
+            if (col >= 0 && gs->grid[z->row][col].type != PLANT_NONE) {
                 z->eating = 1;
                 z->eat_timer = ZOMBIE_EAT_COOLDOWN;
             }
